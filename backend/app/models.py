@@ -104,6 +104,7 @@ class User(Base):
     role = Column(Enum(UserRoleEnum), default=UserRoleEnum.EMPLOYEE, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+    profile_complete = Column(Boolean, default=False)
 
     employee = relationship("Employee", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user")

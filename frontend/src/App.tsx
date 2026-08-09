@@ -22,6 +22,7 @@ import Documents from "./pages/Documents";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import CompanyCalendar from "./pages/CompanyCalendar";
+import Onboarding from "./pages/Onboarding";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/onboard" element={<Onboarding />} />
 
             {/* Authenticated routes available to ALL logged-in roles (Employee & HR) */}
             <Route element={<ProtectedRoute />}>

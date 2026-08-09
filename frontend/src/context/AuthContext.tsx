@@ -1,16 +1,17 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import api from "../api/client";
 
-interface AuthUser {
+export interface AuthUser {
   email: string;
   role: string;
   employee_id?: string;
   full_name?: string;
+  profile_complete?: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   loading: boolean;
 }
@@ -24,15 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState(false);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<AuthUser> => {
     setLoading(true);
     try {
       const res = await api.post("/api/auth/login", { email, password });
-      const { access_token, role, employee_id, full_name } = res.data;
+      const { access_token, role, employee_id, full_name, profile_complete } = res.data;
       localStorage.setItem("hr_token", access_token);
-      const authUser = { email, role, employee_id, full_name };
+      const authUser: AuthUser = { email, role, employee_id, full_name, profile_complete };
       localStorage.setItem("hr_user", JSON.stringify(authUser));
       setUser(authUser);
+      return authUser;
     } finally {
       setLoading(false);
     }

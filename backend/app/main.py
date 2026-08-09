@@ -18,6 +18,7 @@ from app.routers import (
     leaves,
     moments,
     notifications,
+    onboarding,
     payroll,
     revenue,
     settings,
@@ -64,6 +65,7 @@ app.include_router(events.router)
 app.include_router(announcements.router)
 app.include_router(documents.router)
 app.include_router(notifications.router)
+app.include_router(onboarding.router)
 app.include_router(teams.router)
 app.include_router(settings.router)
 

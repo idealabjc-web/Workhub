@@ -17,6 +17,7 @@ class TokenResponse(BaseModel):
     email: str
     employee_id: Optional[str] = None
     full_name: Optional[str] = None
+    profile_complete: bool = True
 
 
 class UserOut(BaseModel):
@@ -29,6 +30,19 @@ class UserOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class OnboardingRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    phone: Optional[str] = None
+    profile_photo_url: Optional[str] = None
+    branch: str
+    employment_type: str = "Full-Time"
+    designation: Optional[str] = None
+    date_of_joining: Optional[str] = None
+    date_of_birth: Optional[str] = None
 
 
 # ── Department & Team ─────────────────────────────────────────────────────────

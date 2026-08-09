@@ -22,10 +22,15 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     if user.employee:
         full_name = f"{user.employee.first_name} {user.employee.last_name}"
         employee_id = user.employee.id
+
+    # Admins and HR are always considered profile-complete
+    profile_complete = getattr(user, "profile_complete", False) or user.role.value in ("SUPER_ADMIN", "HR", "MANAGER", "FINANCE")
+
     return schemas.TokenResponse(
         access_token=token,
         role=user.role.value,
         email=user.email,
         employee_id=employee_id,
         full_name=full_name,
+        profile_complete=profile_complete,
     )

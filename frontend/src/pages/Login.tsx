@@ -14,8 +14,12 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      await login(email, password);
-      navigate("/dashboard");
+      const loggedUser = await login(email, password);
+      if (loggedUser && loggedUser.profile_complete === false) {
+        navigate("/onboard");
+      } else {
+        navigate("/dashboard");
+      }
     } catch {
       setError("Invalid email address or password");
     }
