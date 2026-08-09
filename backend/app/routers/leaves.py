@@ -1,0 +1,112 @@
+from datetime import date
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app import models, schemas
+from app.database import get_db
+from app.deps import get_current_user, require_roles
+
+router = APIRouter(prefix="/api/leaves", tags=["leaves"])
+
+
+@router.get("", response_model=List[schemas.LeaveOut])
+def list_leaves(
+    employee_id: Optional[str] = None,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    query = db.query(models.Leave)
+    if current_user.role.value == "EMPLOYEE":
+        if current_user.employee:
+            query = query.filter(models.Leave.employee_id == current_user.employee.id)
+    elif employee_id:
+        query = query.filter(models.Leave.employee_id == employee_id)
+    if status:
+        query = query.filter(models.Leave.status == status)
+    return query.order_by(models.Leave.applied_at.desc()).all()
+
+
+@router.post("", response_model=schemas.LeaveOut)
+def apply_leave(
+    payload: schemas.LeaveCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if payload.end_date < payload.start_date:
+        raise HTTPException(status_code=400, detail="End date must be after start date")
+
+    leave = models.Leave(
+        employee_id=payload.employee_id,
+        leave_type=payload.leave_type,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        reason=payload.reason,
+    )
+    db.add(leave)
+    db.commit()
+    db.refresh(leave)
+    return leave
+
+
+@router.patch("/{leave_id}/status", response_model=schemas.LeaveOut)
+def update_leave_status(
+    leave_id: str,
+    payload: schemas.LeaveStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+):
+    leave = db.query(models.Leave).filter(models.Leave.id == leave_id).first()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Leave not found")
+
+    leave.status = payload.status
+    leave.approved_by = current_user.id
+    if payload.comments:
+        leave.comments = payload.comments
+
+    # Update leave balance when approved
+    if payload.status == "APPROVED":
+        days = (leave.end_date - leave.start_date).days + 1
+        balance = db.query(models.LeaveBalance).filter(
+            models.LeaveBalance.employee_id == leave.employee_id,
+            models.LeaveBalance.leave_type == leave.leave_type,
+        ).first()
+        if balance:
+            balance.used += days
+
+    db.commit()
+    db.refresh(leave)
+    return leave
+
+
+@router.get("/balances", response_model=List[schemas.LeaveBalanceOut])
+def get_all_balances(
+    employee_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    query = db.query(models.LeaveBalance)
+    if current_user.role.value == "EMPLOYEE" and current_user.employee:
+        query = query.filter(models.LeaveBalance.employee_id == current_user.employee.id)
+    elif employee_id:
+        query = query.filter(models.LeaveBalance.employee_id == employee_id)
+    return query.all()
+
+
+@router.delete("/{leave_id}")
+def delete_leave(
+    leave_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    leave = db.query(models.Leave).filter(models.Leave.id == leave_id).first()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Leave not found")
+    if leave.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Cannot cancel non-pending leave")
+    db.delete(leave)
+    db.commit()
+    return {"detail": "Leave cancelled"}
