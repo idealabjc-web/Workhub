@@ -9,3 +9,5 @@ python-jose[cryptography]==3.3.0
 bcrypt==4.2.0
 python-multipart==0.0.9
 alembic==1.13.2
+google-auth==2.35.0
+requests==2.32.3

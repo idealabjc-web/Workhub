@@ -1,3 +1,6 @@
+import os
+import uuid
+import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +9,8 @@ from app.auth import create_access_token, verify_password
 from app.database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "957026139388-q05hohgt3dlsmhjf3fkdvv7us94j7rhl.apps.googleusercontent.com")
 
 
 @router.post("/login", response_model=schemas.TokenResponse)
@@ -34,3 +39,61 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
         full_name=full_name,
         profile_complete=profile_complete,
     )
+
+
+@router.post("/google", response_model=schemas.TokenResponse)
+def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_db)):
+    """Verifies Google ID Token and logs in or registers employee."""
+    try:
+        # Verify ID token using Google API
+        res = requests.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={payload.token}", timeout=10)
+        if res.status_code != 200:
+            raise HTTPException(status_code=400, detail="Invalid Google token")
+        
+        info = res.json()
+        email = info.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Google")
+
+        # Check if user exists
+        user = db.query(models.User).filter(models.User.email == email).first()
+
+        if not user:
+            # First time logging in with Google -> Create user with EMPLOYEE role and profile_complete=False
+            user = models.User(
+                id=str(uuid.uuid4()),
+                email=email,
+                hashed_password=f"GOOGLE_AUTH_{uuid.uuid4().hex}",
+                role=models.UserRoleEnum.EMPLOYEE,
+                profile_complete=False,
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        token = create_access_token({"sub": user.id, "role": user.role.value})
+        full_name = None
+        employee_id = None
+
+        if user.employee:
+            full_name = f"{user.employee.first_name} {user.employee.last_name}"
+            employee_id = user.employee.id
+        elif info.get("name"):
+            full_name = info.get("name")
+
+        profile_complete = getattr(user, "profile_complete", False) or user.role.value in ("SUPER_ADMIN", "HR", "MANAGER", "FINANCE")
+
+        return schemas.TokenResponse(
+            access_token=token,
+            role=user.role.value,
+            email=user.email,
+            employee_id=employee_id,
+            full_name=full_name,
+            profile_complete=profile_complete,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")

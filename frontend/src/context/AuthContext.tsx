@@ -12,6 +12,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<AuthUser>;
+  loginWithGoogle: (token: string) => Promise<AuthUser>;
   logout: () => void;
   loading: boolean;
 }
@@ -40,6 +41,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (token: string): Promise<AuthUser> => {
+    setLoading(true);
+    try {
+      const res = await api.post("/api/auth/google", { token });
+      const { access_token, role, employee_id, full_name, profile_complete } = res.data;
+      localStorage.setItem("hr_token", access_token);
+      const authUser: AuthUser = { email: res.data.email, role, employee_id, full_name, profile_complete };
+      localStorage.setItem("hr_user", JSON.stringify(authUser));
+      setUser(authUser);
+      return authUser;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem("hr_token");
     localStorage.removeItem("hr_user");
@@ -47,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
