@@ -1,17 +1,12 @@
 import axios from "axios";
 
-const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host !== "localhost" && host !== "127.0.0.1") {
-      return "https://improvements-prostores-coordination-rounds.trycloudflare.com";
-    }
-  }
-  return "http://127.0.0.1:8000";
-};
-
-const API_URL = getBaseUrl();
+// Permanent cloud-hosted backend on Render.com
+// This never changes and works from any device worldwide
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+    ? "https://idealab-workhub-api.onrender.com"
+    : "http://127.0.0.1:8000");
 
 const api = axios.create({ baseURL: API_URL });
 
