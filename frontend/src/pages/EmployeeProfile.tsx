@@ -46,11 +46,17 @@ const branchColors: Record<string, string> = {
 
 const DOC_TYPES = ["Resume", "Aadhaar", "PAN", "Offer Letter", "Appointment Letter", "Experience Letter", "Other"];
 
-const TIMELINE_MOCK = (emp: Employee) => [
-  { date: emp.date_of_joining, event: "Joined Company", desc: `Joined as ${emp.designation || "Team Member"} at ${emp.branch}`, icon: "🎉", color: "bg-emerald-500" },
-  { date: new Date(new Date(emp.date_of_joining).getTime() + 90 * 86400000).toISOString().slice(0, 10), event: "Probation Completed", desc: "Successfully completed probation period", icon: "✅", color: "bg-brand-500" },
-  { date: new Date(new Date(emp.date_of_joining).getTime() + 365 * 86400000).toISOString().slice(0, 10), event: "Work Anniversary", desc: "Completed 1 year with the company", icon: "🏆", color: "bg-amber-500" },
-];
+const TIMELINE_MOCK = (emp: Employee) => {
+  const today = new Date();
+  const allEvents = [
+    { date: emp.date_of_joining, event: "Joined Company", desc: `Joined as ${emp.designation || "Team Member"} at ${emp.branch}`, icon: "🎉", color: "bg-emerald-500" },
+    { date: new Date(new Date(emp.date_of_joining).getTime() + 90 * 86400000).toISOString().slice(0, 10), event: "Probation Completed", desc: "Successfully completed probation period", icon: "✅", color: "bg-brand-500" },
+    { date: new Date(new Date(emp.date_of_joining).getTime() + 365 * 86400000).toISOString().slice(0, 10), event: "Work Anniversary", desc: "Completed 1 year with the company", icon: "🏆", color: "bg-amber-500" },
+  ];
+
+  // Only return events that have already occurred up to today
+  return allEvents.filter((ev) => new Date(ev.date) <= today);
+};
 
 export default function EmployeeProfile() {
   const { id } = useParams<{ id: string }>();
