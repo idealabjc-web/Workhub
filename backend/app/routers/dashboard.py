@@ -96,11 +96,7 @@ def get_stats(
     )
 
     # Today's activities
-    today_activities = (
-        db.query(models.Activity)
-        .filter(models.Activity.date == today)
-        .count()
-    )
+    today_activities = 0
 
     # Unread notifications
     unread_notifications = (
