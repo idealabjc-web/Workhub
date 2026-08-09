@@ -5,7 +5,7 @@ const getBaseUrl = () => {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
     if (host !== "localhost" && host !== "127.0.0.1") {
-      return "https://clear-fans-invent.loca.lt";
+      return "https://improvements-prostores-coordination-rounds.trycloudflare.com";
     }
   }
   return "http://127.0.0.1:8000";
@@ -13,12 +13,7 @@ const getBaseUrl = () => {
 
 const API_URL = getBaseUrl();
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "bypass-tunnel-reminder": "true",
-  },
-});
+const api = axios.create({ baseURL: API_URL });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("hr_token");
