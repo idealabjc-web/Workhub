@@ -146,8 +146,8 @@ export default function Leaves() {
       </div>
 
       {/* Table */}
-      <div className="card overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="table-wrapper">
+        <table className="w-full min-w-[700px] text-left text-sm">
           <thead className="border-b border-slate-200 text-xs uppercase text-slate-400 dark:border-slate-800">
             <tr>
               <th className="px-4 py-3">Type</th>

@@ -401,7 +401,7 @@ export default function Attendance() {
                             onClick={() => setEditingCell({ empId: emp.employee_id, day: dayNum, currentStatus: statusKey })}
                             className={`w-6 h-6 rounded text-[9px] font-bold transition flex items-center justify-center mx-auto border ${
                               cfg ? cfg.cls : "border-dashed border-slate-200 dark:border-slate-700 text-slate-300 hover:border-brand-500"
-                            } ${monthlyData.is_finalized ? "cursor-not-allowed opacity-80" : "hover:scale-110 shadow-2xs"}`}
+                            } ${monthlyData.is_finalized ? "cursor-not-allowed opacity-80" : "hover:scale-110 shadow-xs"}`}
                             title={`Click to set status for Day ${dayNum}`}
                           >
                             {cfg ? cfg.abbr : "-"}
@@ -431,7 +431,7 @@ export default function Attendance() {
 
       {/* CELL EDIT POPOVER MODAL */}
       {editingCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" onClick={() => setEditingCell(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setEditingCell(null)}>
           <div className="card p-5 max-w-xs w-full space-y-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <p className="font-bold text-sm">Set Day {editingCell.day} Status</p>
