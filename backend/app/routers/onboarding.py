@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,23 @@ def get_current_user(
     return user
 
 
+def parse_flexible_date(val: str) -> date:
+    if not val:
+        return None
+    val = val.strip()
+    # Try DD/MM/YYYY format first
+    try:
+        return datetime.strptime(val, "%d/%m/%Y").date()
+    except ValueError:
+        pass
+    # Try ISO YYYY-MM-DD format
+    try:
+        return date.fromisoformat(val)
+    except ValueError:
+        pass
+    return None
+
+
 @router.post("/complete")
 def complete_onboarding(
     payload: schemas.OnboardingRequest,
@@ -35,24 +52,13 @@ def complete_onboarding(
 ):
     """Called after first login — creates/updates the employee record and marks profile as complete."""
 
-    # Parse dates
-    doj = None
-    dob = None
-    try:
-        if payload.date_of_joining:
-            doj = date.fromisoformat(payload.date_of_joining)
-    except ValueError:
-        doj = date.today()
-    try:
-        if payload.date_of_birth:
-            dob = date.fromisoformat(payload.date_of_birth)
-    except ValueError:
-        dob = None
+    # Parse dates (supports DD/MM/YYYY and YYYY-MM-DD)
+    doj = parse_flexible_date(payload.date_of_joining) or date.today()
+    dob = parse_flexible_date(payload.date_of_birth)
 
-    # Map branch string to enum
+    # Map branch string to enum (IDEALAB and VIZAG)
     branch_map = {
         "IDEALAB": models.BranchEnum.IDEALAB,
-        "UGC": models.BranchEnum.UGC,
         "VIZAG": models.BranchEnum.VIZAG,
     }
     branch = branch_map.get(payload.branch.upper(), models.BranchEnum.IDEALAB)
@@ -78,11 +84,13 @@ def complete_onboarding(
         emp.last_name = payload.last_name
         emp.email = payload.email
         emp.phone = payload.phone
+        emp.gender = payload.gender
+        emp.team_name = payload.team_name
         emp.profile_photo_url = payload.profile_photo_url
         emp.branch = branch
         emp.employment_type = emp_type
         emp.designation = payload.designation
-        emp.date_of_joining = doj or date.today()
+        emp.date_of_joining = doj
         emp.date_of_birth = dob
     else:
         emp = models.Employee(
@@ -93,11 +101,13 @@ def complete_onboarding(
             last_name=payload.last_name,
             email=payload.email,
             phone=payload.phone,
+            gender=payload.gender,
+            team_name=payload.team_name,
             profile_photo_url=payload.profile_photo_url,
             branch=branch,
             employment_type=emp_type,
             designation=payload.designation,
-            date_of_joining=doj or date.today(),
+            date_of_joining=doj,
             date_of_birth=dob,
             status=models.EmployeeStatusEnum.ACTIVE,
             basic_salary=0.0,

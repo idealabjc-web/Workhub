@@ -152,6 +152,8 @@ class Employee(Base):
     emergency_contact = Column(String, nullable=True)
     date_of_joining = Column(Date, nullable=False, default=date.today)
     department_id = Column(String, ForeignKey("departments.id"), nullable=True)
+    team_id = Column(String, ForeignKey("teams.id"), nullable=True)
+    team_name = Column(String, nullable=True)
     designation = Column(String, nullable=True)
     reporting_manager_id = Column(String, ForeignKey("employees.id"), nullable=True)
     branch = Column(Enum(BranchEnum), default=BranchEnum.IDEALAB, nullable=False)

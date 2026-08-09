@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, Calendar, Briefcase, MapPin, Camera, Sparkles, CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react";
+import { User, Mail, Phone, Calendar, Briefcase, MapPin, Camera, Sparkles, CheckCircle2, ArrowRight, ShieldCheck, Upload, Trash2, Heart } from "lucide-react";
 import api from "../api/client";
 
 export default function Onboarding() {
@@ -10,22 +10,58 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Default dates in DD/MM/YYYY
+  const todayDDMMYYYY = () => {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   const [form, setForm] = useState({
     first_name: storedUser.full_name ? storedUser.full_name.split(" ")[0] : "",
     last_name: storedUser.full_name ? storedUser.full_name.split(" ").slice(1).join(" ") : "",
     email: storedUser.email || "",
     phone: "",
+    gender: "Male",
     profile_photo_url: "",
     branch: "IDEALAB",
+    team_name: "IDIAS",
     employment_type: "Full-Time",
     designation: "",
-    date_of_joining: new Date().toISOString().split("T")[0],
+    date_of_joining: todayDDMMYYYY(),
     date_of_birth: "",
   });
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Drag and drop photo upload handler
+  const handleFileUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file (PNG, JPG, WEBP).");
+      return;
+    }
+    setError("");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        setForm((prev) => ({ ...prev, profile_photo_url: e.target!.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +71,6 @@ export default function Onboarding() {
 
     try {
       const res = await api.post("/api/onboarding/complete", form);
-      // Update stored user
       const updatedUser = {
         ...storedUser,
         profile_complete: true,
@@ -134,18 +169,37 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Mail ID *</label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    required
-                    type="email"
-                    placeholder="employee@workhub.com"
-                    value={form.email}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Mail ID *</label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      required
+                      type="email"
+                      placeholder="employee@workhub.com"
+                      value={form.email}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Gender *</label>
+                  <div className="relative">
+                    <Heart size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select
+                      value={form.gender}
+                      onChange={(e) => handleChange("gender", e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -166,12 +220,13 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Birthday *</label>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Birthday (DD/MM/YYYY) *</label>
                   <div className="relative">
                     <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       required
-                      type="date"
+                      type="text"
+                      placeholder="DD/MM/YYYY (e.g. 25/08/1998)"
                       value={form.date_of_birth}
                       onChange={(e) => handleChange("date_of_birth", e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition"
@@ -206,7 +261,7 @@ export default function Onboarding() {
                 <Briefcase size={18} className="text-brand-400" /> Work & Role Details
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Branch *</label>
                   <div className="relative">
@@ -217,8 +272,29 @@ export default function Onboarding() {
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer"
                     >
                       <option value="IDEALAB">IDEALAB</option>
-                      <option value="UGC">UGC</option>
                       <option value="VIZAG">VIZAG</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Team *</label>
+                  <div className="relative">
+                    <Briefcase size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select
+                      value={form.team_name}
+                      onChange={(e) => handleChange("team_name", e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer font-medium"
+                    >
+                      <option value="IDIAS">IDIAS</option>
+                      <option value="WYN">WYN</option>
+                      <option value="NEXT">NEXT</option>
+                      <option value="WYNX">WYNX</option>
+                      <option value="PROSUMMITS">PROSUMMITS</option>
+                      <option value="VOICE">VOICE</option>
+                      <option value="SIGNATURE">SIGNATURE</option>
+                      <option value="VIZAG">VIZAG</option>
+                      <option value="ICON">ICON</option>
                     </select>
                   </div>
                 </div>
@@ -255,12 +331,13 @@ export default function Onboarding() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Date of Joining *</label>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Date of Joining (DD/MM/YYYY) *</label>
                 <div className="relative">
                   <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     required
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/YYYY (e.g. 15/06/2023)"
                     value={form.date_of_joining}
                     onChange={(e) => handleChange("date_of_joining", e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition"
@@ -294,35 +371,54 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 3: Photo & Final Review */}
+          {/* STEP 3: Drag & Drop Photo & Final Review */}
           {step === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
               <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
                 <Camera size={18} className="text-brand-400" /> Profile Picture & Review
               </h2>
 
-              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-brand-500/50 flex items-center justify-center overflow-hidden shrink-0">
-                  {form.profile_photo_url ? (
-                    <img src={form.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User size={36} className="text-slate-500" />
-                  )}
-                </div>
-                <div className="flex-1 w-full">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Profile Photo URL (Optional)</label>
-                  <div className="relative">
-                    <Camera size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="url"
-                      placeholder="https://example.com/avatar.jpg"
-                      value={form.profile_photo_url}
-                      onChange={(e) => handleChange("profile_photo_url", e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-brand-500 transition"
-                    />
+              {/* Drag and Drop Box */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`relative flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl transition cursor-pointer ${
+                  isDragging ? "border-brand-500 bg-brand-500/10" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+
+                {form.profile_photo_url ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-24 h-24 rounded-full border-4 border-brand-500/60 shadow-xl overflow-hidden">
+                      <img src={form.profile_photo_url} alt="Uploaded Avatar" className="w-full h-full object-cover" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setForm((prev) => ({ ...prev, profile_photo_url: "" }));
+                      }}
+                      className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
+                    >
+                      <Trash2 size={13} /> Remove Photo
+                    </button>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">Paste an image link or leave empty to use default avatar.</p>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-brand-400 mb-1">
+                      <Upload size={22} />
+                    </div>
+                    <p className="text-sm font-semibold text-white">Drag & drop your photo here</p>
+                    <p className="text-xs text-slate-400">or click to browse from your device (PNG, JPG, WEBP)</p>
+                  </div>
+                )}
               </div>
 
               {/* Summary Box */}
@@ -333,8 +429,10 @@ export default function Onboarding() {
                 <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
                   <div><span className="text-slate-500">Name:</span> {form.first_name} {form.last_name}</div>
                   <div><span className="text-slate-500">Email:</span> {form.email}</div>
+                  <div><span className="text-slate-500">Gender:</span> {form.gender}</div>
                   <div><span className="text-slate-500">Phone:</span> {form.phone}</div>
                   <div><span className="text-slate-500">Branch:</span> {form.branch}</div>
+                  <div><span className="text-slate-500">Team:</span> {form.team_name}</div>
                   <div><span className="text-slate-500">Work Mode:</span> {form.employment_type}</div>
                   <div><span className="text-slate-500">Role:</span> {form.designation}</div>
                   <div><span className="text-slate-500">DOJ:</span> {form.date_of_joining}</div>

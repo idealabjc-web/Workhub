@@ -243,11 +243,10 @@ export default function Employees() {
         <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
           <option value="IDEALAB">Idealab</option>
-          <option value="UGC">UGC</option>
           <option value="VIZAG">Vizag</option>
         </select>
         <select className="input w-40 text-sm" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-          <option value="">All Departments</option>
+          <option value="">All Teams</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         <select className="input w-32 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -271,12 +270,13 @@ export default function Employees() {
             <input placeholder="Designation" className="input text-sm" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
             <select className="input text-sm" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
               <option value="IDEALAB">Idealab</option>
-              <option value="UGC">UGC</option>
               <option value="VIZAG">Vizag</option>
             </select>
-            <select className="input text-sm" value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
-              <option value="">Select Department</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.branch})</option>)}
+            <select className="input text-sm" value={(form as any).team_name || ""} onChange={(e) => setForm({ ...form, team_name: e.target.value } as any)}>
+              <option value="">Select Team</option>
+              {["IDIAS", "WYN", "NEXT", "WYNX", "PROSUMMITS", "VOICE", "SIGNATURE", "VIZAG", "ICON"].map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
             <select className="input text-sm" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="EMPLOYEE">Employee</option>
@@ -308,7 +308,7 @@ export default function Employees() {
           <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400 dark:border-slate-800">
             <tr>
               <th className="px-4 py-3">Employee</th>
-              <th className="px-4 py-3">Department</th>
+              <th className="px-4 py-3">Team</th>
               <th className="px-4 py-3">Branch</th>
               <th className="px-4 py-3">Joined</th>
               <th className="px-4 py-3">Type</th>
@@ -334,7 +334,7 @@ export default function Employees() {
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{deptName(emp.department_id)}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300 font-medium">{(emp as any).team_name || deptName(emp.department_id)}</td>
                 <td className="px-4 py-3">
                   <span className={`badge ${branchColors[emp.branch] || ""}`}>{emp.branch}</span>
                 </td>

@@ -45,6 +45,8 @@ class OnboardingRequest(BaseModel):
     branch: str
     employment_type: str = "Full-Time"
     designation: Optional[str] = None
+    gender: Optional[str] = None
+    team_name: Optional[str] = None
     date_of_joining: Optional[str] = None
     date_of_birth: Optional[str] = None
 
@@ -97,6 +99,8 @@ class EmployeeCreate(BaseModel):
     address: Optional[str] = None
     emergency_contact: Optional[str] = None
     department_id: Optional[str] = None
+    team_id: Optional[str] = None
+    team_name: Optional[str] = None
     designation: Optional[str] = None
     reporting_manager_id: Optional[str] = None
     branch: str = "IDEALAB"
@@ -115,6 +119,8 @@ class EmployeeUpdate(BaseModel):
     address: Optional[str] = None
     emergency_contact: Optional[str] = None
     department_id: Optional[str] = None
+    team_id: Optional[str] = None
+    team_name: Optional[str] = None
     designation: Optional[str] = None
     reporting_manager_id: Optional[str] = None
     branch: Optional[str] = None
@@ -138,6 +144,8 @@ class EmployeeOut(BaseModel):
     emergency_contact: Optional[str] = None
     date_of_joining: datetime.date
     department_id: Optional[str] = None
+    team_id: Optional[str] = None
+    team_name: Optional[str] = None
     designation: Optional[str] = None
     reporting_manager_id: Optional[str] = None
     branch: str
