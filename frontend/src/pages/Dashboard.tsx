@@ -255,23 +255,35 @@ export default function Dashboard() {
             <p className="text-xs text-slate-400">Click to view monthly Pagara grid</p>
           </div>
 
-          <div className="card p-4 sm:p-5 space-y-2 cursor-pointer hover:border-brand-400 transition" onClick={() => navigate("/leaves")}>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-semibold uppercase text-slate-400">My Leave Balances</span>
+          <div className="card p-4 sm:p-5 cursor-pointer hover:border-brand-400 transition flex flex-col justify-between" onClick={() => navigate("/leaves")}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase text-slate-400 tracking-wider">Annual Leave Quota</span>
               <CalendarDays className="text-amber-500 shrink-0" size={18} />
             </div>
-            <div className="flex flex-wrap gap-3 pt-1">
-              {balances.length > 0 ? (
-                balances.slice(0, 3).map((b) => (
-                  <div key={b.id}>
-                    <p className="text-[10px] text-slate-400 capitalize">{b.leave_type.toLowerCase()}</p>
-                    <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">{b.total - b.used} days</p>
+            {balances.length > 0 ? (() => {
+              const primary = balances[0];
+              const remaining = Math.max(primary.total - primary.used, 0);
+              const pct = Math.round((remaining / primary.total) * 100);
+              return (
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{remaining}</span>
+                      <span className="text-xs text-slate-400 font-semibold">of {primary.total} Left</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{primary.used} day(s) used this year</p>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">12 Days Available</p>
-              )}
-            </div>
+                  <div className="w-20 text-right shrink-0">
+                    <div className="text-[11px] font-bold text-brand-600 dark:text-brand-400 mb-1">{pct}% Available</div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div className="h-1.5 rounded-full bg-brand-500 transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : (
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">6 of 6 Left</p>
+            )}
           </div>
 
           <div className="card p-4 sm:p-5 space-y-2 cursor-pointer hover:border-brand-400 transition" onClick={() => navigate("/calendar")}>
