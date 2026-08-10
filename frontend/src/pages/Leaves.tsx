@@ -81,21 +81,33 @@ export default function Leaves() {
         </button>
       </div>
 
-      {/* Leave Balances */}
-      {balances.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {balances.slice(0, 6).map((b) => (
-            <div key={b.id} className="card p-4 text-center">
-              <p className="text-xs text-slate-400 mb-1">{LEAVE_TYPE_LABEL[b.leave_type] || b.leave_type}</p>
-              <p className={`text-2xl font-bold ${balanceColor(b.used, b.total)}`}>{b.total - b.used}</p>
-              <p className="text-[10px] text-slate-400">of {b.total} left</p>
-              <div className="mt-2 h-1 w-full rounded-full bg-slate-100 dark:bg-slate-800">
-                <div className="h-1 rounded-full bg-brand-500 transition-all" style={{ width: `${Math.min((b.used / b.total) * 100, 100)}%` }} />
+      {/* Single Consolidated Leave Balance Summary Card */}
+      {balances.length > 0 && (() => {
+        const primary = balances[0];
+        const remaining = Math.max(primary.total - primary.used, 0);
+        return (
+          <div className="card p-5 max-w-sm border-l-4 border-l-brand-500 shadow-sm flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Annual Leave Quota</p>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className={`text-3xl font-extrabold ${balanceColor(primary.used, primary.total)}`}>{remaining}</span>
+                <span className="text-sm font-semibold text-slate-400">of {primary.total} Left</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {primary.used} day(s) used this year
+              </p>
+            </div>
+            <div className="w-24 text-right">
+              <div className="text-xs font-bold text-brand-600 dark:text-brand-400 mb-1">
+                {Math.round((remaining / primary.total) * 100)}% Available
+              </div>
+              <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div className="h-2 rounded-full bg-brand-500 transition-all" style={{ width: `${Math.min((remaining / primary.total) * 100, 100)}%` }} />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Apply Form */}
       {showForm && (
