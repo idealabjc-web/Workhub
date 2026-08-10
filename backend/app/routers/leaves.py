@@ -82,18 +82,55 @@ def update_leave_status(
     return leave
 
 
+def get_annual_leaves_by_gender(gender: Optional[str]) -> int:
+    """Female -> 12 leaves per year; Male / Other -> 6 leaves per year."""
+    if gender and str(gender).strip().lower() in ["female", "f"]:
+        return 12
+    return 6
+
+
+def sync_employee_leave_balances(db: Session, employee: models.Employee):
+    quota = get_annual_leaves_by_gender(employee.gender)
+
+    for lt in models.LeaveTypeEnum:
+        balance = db.query(models.LeaveBalance).filter(
+            models.LeaveBalance.employee_id == employee.id,
+            models.LeaveBalance.leave_type == lt,
+        ).first()
+
+        if balance:
+            balance.total = quota
+        else:
+            db.add(models.LeaveBalance(
+                employee_id=employee.id,
+                leave_type=lt,
+                total=quota,
+                used=0,
+            ))
+    db.commit()
+
+
 @router.get("/balances", response_model=List[schemas.LeaveBalanceOut])
 def get_all_balances(
     employee_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    query = db.query(models.LeaveBalance)
     if current_user.role.value == "EMPLOYEE" and current_user.employee:
-        query = query.filter(models.LeaveBalance.employee_id == current_user.employee.id)
+        sync_employee_leave_balances(db, current_user.employee)
+        return db.query(models.LeaveBalance).filter(models.LeaveBalance.employee_id == current_user.employee.id).all()
     elif employee_id:
-        query = query.filter(models.LeaveBalance.employee_id == employee_id)
-    return query.all()
+        emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+        if emp:
+            sync_employee_leave_balances(db, emp)
+        return db.query(models.LeaveBalance).filter(models.LeaveBalance.employee_id == employee_id).all()
+
+    # Sync all employees if admin/HR
+    all_emps = db.query(models.Employee).all()
+    for emp in all_emps:
+        sync_employee_leave_balances(db, emp)
+
+    return db.query(models.LeaveBalance).all()
 
 
 @router.delete("/{leave_id}")

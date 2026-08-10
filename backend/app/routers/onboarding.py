@@ -120,6 +120,10 @@ def complete_onboarding(
     db.commit()
     db.refresh(emp)
 
+    # Sync gender-based annual leave quota (Female: 12 leaves/yr, Male: 6 leaves/yr)
+    from app.routers.leaves import sync_employee_leave_balances
+    sync_employee_leave_balances(db, emp)
+
     return {
         "message": "Profile completed successfully",
         "employee_id": emp.id,

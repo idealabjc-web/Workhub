@@ -84,18 +84,12 @@ def create_employee(
         basic_salary=payload.basic_salary,
     )
     db.add(employee)
-    db.flush()
-
-    for lt in models.LeaveTypeEnum:
-        db.add(models.LeaveBalance(
-            employee_id=employee.id,
-            leave_type=lt,
-            total=12 if lt in [models.LeaveTypeEnum.CASUAL, models.LeaveTypeEnum.SICK] else 15,
-            used=0,
-        ))
-
     db.commit()
     db.refresh(employee)
+
+    from app.routers.leaves import sync_employee_leave_balances
+    sync_employee_leave_balances(db, employee)
+
     return employee
 
 
@@ -147,15 +141,11 @@ def import_employees(
             basic_salary=emp.basic_salary or 50000.0,
         )
         db.add(employee)
-        db.flush()
+        db.commit()
+        db.refresh(employee)
 
-        for lt in models.LeaveTypeEnum:
-            db.add(models.LeaveBalance(
-                employee_id=employee.id,
-                leave_type=lt,
-                total=12 if lt in [models.LeaveTypeEnum.CASUAL, models.LeaveTypeEnum.SICK] else 15,
-                used=0,
-            ))
+        from app.routers.leaves import sync_employee_leave_balances
+        sync_employee_leave_balances(db, employee)
         created += 1
 
     db.commit()
@@ -204,6 +194,10 @@ def update_employee(
         setattr(employee, field, value)
     db.commit()
     db.refresh(employee)
+
+    from app.routers.leaves import sync_employee_leave_balances
+    sync_employee_leave_balances(db, employee)
+
     return employee
 
 
