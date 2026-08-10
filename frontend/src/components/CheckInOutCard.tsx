@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ShieldCheck, Settings, Globe } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -29,11 +29,14 @@ interface TodayStatusData {
   employee_id: string;
   branch: string;
   office_location: OfficeLocation;
+  allow_remote_checkin?: boolean;
   attendance: TodayAttendance | null;
 }
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
   const { user } = useAuth();
+  const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
+
   const [data, setData] = useState<TodayStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -45,6 +48,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   const [geoError, setGeoError] = useState<string | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
+  const [remoteAllowed, setRemoteAllowed] = useState(false);
 
   // Live work duration counter
   const [workDuration, setWorkDuration] = useState<string>("");
@@ -54,6 +58,9 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
     try {
       const res = await api.get("/api/attendance/today-status");
       setData(res.data);
+      if (res.data.allow_remote_checkin !== undefined) {
+        setRemoteAllowed(Boolean(res.data.allow_remote_checkin));
+      }
     } catch (err: any) {
       console.error("Failed to fetch today status", err);
     } finally {
@@ -80,9 +87,9 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       (err) => {
         setGettingLocation(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setGeoError("Location permission denied. Please allow location access in your browser to check in/out.");
+          setGeoError("Location permission denied. Click 'Allow Remote Check-In' or grant browser GPS access.");
         } else {
-          setGeoError(`Geolocation error: ${err.message}`);
+          setGeoError(`Geolocation alert: ${err.message}`);
         }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -143,23 +150,17 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   }, [data?.attendance]);
 
   const handleCheckIn = async () => {
-    if (!data || !user?.employee_id) return;
     setError(null);
     setSuccess(null);
-
-    if (!coords) {
-      setError("Unable to obtain your location. Please enable GPS location services and click 'Acquire Location'.");
-      return;
-    }
 
     setActionLoading(true);
     try {
       await api.post("/api/attendance/check-in", {
-        employee_id: user.employee_id,
-        latitude: coords.lat,
-        longitude: coords.lng,
+        employee_id: user?.employee_id || data?.employee_id,
+        latitude: coords?.lat || 0.0,
+        longitude: coords?.lng || 0.0,
       });
-      setSuccess("Checked in successfully at office location!");
+      setSuccess("Checked in successfully!");
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
@@ -170,27 +171,62 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   };
 
   const handleCheckOut = async () => {
-    if (!data || !user?.employee_id) return;
     setError(null);
     setSuccess(null);
-
-    if (!coords) {
-      setError("Unable to obtain your location. Please enable GPS location services.");
-      return;
-    }
 
     setActionLoading(true);
     try {
       await api.post("/api/attendance/check-out", {
-        employee_id: user.employee_id,
-        latitude: coords.lat,
-        longitude: coords.lng,
+        employee_id: user?.employee_id || data?.employee_id,
+        latitude: coords?.lat || 0.0,
+        longitude: coords?.lng || 0.0,
       });
       setSuccess("Checked out successfully!");
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
       setError(err.response?.data?.detail || "Check-out failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSetCurrentAsOffice = async () => {
+    if (!coords || !data) {
+      setError("Please acquire your GPS location first by clicking 'Refresh GPS'");
+      return;
+    }
+    setActionLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.post("/api/attendance/set-office-location", {
+        branch: data.branch,
+        name: `${data.branch} Office Premises`,
+        lat: coords.lat,
+        lng: coords.lng,
+        radius_meters: 1000.0,
+      });
+      setSuccess(`Updated office location coordinates for ${data.branch}!`);
+      await loadStatus();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to update office location");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleRemote = async () => {
+    setActionLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await api.post("/api/attendance/toggle-remote-checkin");
+      setRemoteAllowed(res.data.allow_remote_checkin);
+      setSuccess(`Remote check-in is now ${res.data.allow_remote_checkin ? "ENABLED (Geofence Bypassed)" : "DISABLED (Strict Geofence)"}`);
+      await loadStatus();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to toggle remote check-in");
     } finally {
       setActionLoading(false);
     }
@@ -211,7 +247,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   const isCheckedOut = Boolean(att?.check_in && att?.check_out);
   const isNotCheckedIn = !att?.check_in;
 
-  const isWithinGeofence = distanceMeters !== null && office ? distanceMeters <= office.radius_meters : false;
+  const isWithinGeofence = remoteAllowed || (distanceMeters !== null && office ? distanceMeters <= office.radius_meters : false);
 
   return (
     <div className="card p-5 space-y-4 border-l-4 border-l-brand-500 shadow-sm">
@@ -248,9 +284,19 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
 
       {/* Notifications */}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
-          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-xs text-red-700 dark:text-red-300 flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+          {isHR && (
+            <button
+              onClick={handleToggleRemote}
+              className="px-2 py-1 rounded bg-brand-500 text-white font-bold text-[10px] shrink-0 hover:bg-brand-600"
+            >
+              Enable Remote Check-In
+            </button>
+          )}
         </div>
       )}
 
@@ -263,27 +309,35 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
 
       {/* Location Geofence Status */}
       <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 space-y-2">
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
             <MapPin size={14} className="text-brand-500" /> Assigned Premises: <b>{office?.name}</b>
           </span>
-          <button
-            onClick={requestLocation}
-            disabled={gettingLocation}
-            className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 disabled:opacity-50"
-          >
-            <Navigation size={12} className={gettingLocation ? "animate-spin" : ""} />
-            {gettingLocation ? "Locating..." : "Refresh GPS"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={requestLocation}
+              disabled={gettingLocation}
+              className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 disabled:opacity-50"
+            >
+              <Navigation size={12} className={gettingLocation ? "animate-spin" : ""} />
+              {gettingLocation ? "Locating..." : "Refresh GPS"}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-          {geoError ? (
+          {remoteAllowed ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                <Globe size={13} /> Remote / Any Location Allowed
+              </span>
+            </div>
+          ) : geoError ? (
             <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium text-[11px]">
               <AlertTriangle size={13} /> {geoError}
             </span>
           ) : distanceMeters !== null ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${
                   isWithinGeofence
@@ -300,6 +354,30 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
             </div>
           ) : (
             <span className="text-slate-400 text-[11px]">Acquiring GPS coordinates...</span>
+          )}
+
+          {/* Quick Admin Actions */}
+          {isHR && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              {coords && (
+                <button
+                  onClick={handleSetCurrentAsOffice}
+                  disabled={actionLoading}
+                  className="px-2 py-0.5 rounded border border-brand-300 text-brand-700 bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/40 dark:text-brand-300 text-[10px] font-bold transition flex items-center gap-1"
+                  title="Set your current GPS location as the office premises for this branch"
+                >
+                  <MapPin size={11} /> Set GPS as Office
+                </button>
+              )}
+              <button
+                onClick={handleToggleRemote}
+                disabled={actionLoading}
+                className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[10px] font-bold transition flex items-center gap-1"
+                title="Toggle whether check-in/out is allowed remotely from any location"
+              >
+                <Globe size={11} /> {remoteAllowed ? "Disable Remote" : "Allow Remote"}
+              </button>
+            </div>
           )}
         </div>
       </div>

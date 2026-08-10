@@ -181,16 +181,16 @@ class EmployeeDocumentOut(BaseModel):
 # ── Attendance ────────────────────────────────────────────────────────────────
 
 class AttendanceCheckIn(BaseModel):
-    employee_id: str
-    latitude: float
-    longitude: float
+    employee_id: Optional[str] = None
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
     notes: Optional[str] = None
 
 
 class AttendanceCheckOut(BaseModel):
-    employee_id: str
-    latitude: float
-    longitude: float
+    employee_id: Optional[str] = None
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
 
 
 class AttendanceCreate(BaseModel):

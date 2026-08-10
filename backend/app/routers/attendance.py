@@ -48,7 +48,46 @@ def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: fl
     return R * c
 
 
+def get_or_create_user_employee(db: Session, user: models.User) -> models.Employee:
+    if user.employee:
+        return user.employee
+
+    # Look up by email
+    emp = db.query(models.Employee).filter(models.Employee.email == user.email).first()
+    if emp:
+        emp.user_id = user.id
+        db.commit()
+        db.refresh(emp)
+        return emp
+
+    # Create new Employee for user
+    email_name = user.email.split("@")[0]
+    parts = email_name.split(".")
+    fname = parts[0].capitalize()
+    lname = parts[1].capitalize() if len(parts) > 1 else "Staff"
+
+    emp = models.Employee(
+        user_id=user.id,
+        employee_number=f"EMP{db.query(models.Employee).count() + 1001}",
+        first_name=fname,
+        last_name=lname,
+        email=user.email,
+        branch=models.BranchEnum.IDEALAB,
+        status=models.EmployeeStatusEnum.ACTIVE,
+        employment_type=models.EmploymentTypeEnum.FULL_TIME,
+        date_of_joining=date.today(),
+    )
+    db.add(emp)
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
 def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float):
+    # Check if global remote check-in / geofence bypass is enabled
+    bypass_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
+    allow_remote = bypass_setting and bypass_setting.value == "true"
+
     branch_val = employee.branch.value if hasattr(employee.branch, "value") else str(employee.branch)
     office = dict(OFFICE_LOCATIONS.get(branch_val, OFFICE_LOCATIONS["IDEALAB"]))
 
@@ -67,6 +106,10 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
         except Exception:
             pass
 
+    # If coordinates are not provided (0.0) or allow_remote is true, skip distance error
+    if (user_lat == 0.0 and user_lng == 0.0) or allow_remote:
+        return office, 0.0
+
     distance = calculate_haversine_distance(user_lat, user_lng, office["lat"], office["lng"])
     allowed_radius = office["radius_meters"]
 
@@ -76,7 +119,8 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
             status_code=400,
             detail=(
                 f"Location verification failed! You are {dist_str} away from {office['name']}. "
-                f"Check-in and check-out are only allowed within {allowed_radius:.0f} meters of office premises."
+                f"Check-in/out is allowed within {allowed_radius:.0f}m of office premises. "
+                f"(Click 'Set Current GPS as Office Location' or toggle Remote Check-In to allow location)."
             ),
         )
 
@@ -101,10 +145,7 @@ def get_today_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if not current_user.employee:
-        raise HTTPException(status_code=404, detail="Employee profile not found")
-
-    emp = current_user.employee
+    emp = get_or_create_user_employee(db, current_user)
     today = date.today()
     att = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
@@ -114,13 +155,73 @@ def get_today_status(
     branch_val = emp.branch.value if hasattr(emp.branch, "value") else str(emp.branch)
     office = dict(OFFICE_LOCATIONS.get(branch_val, OFFICE_LOCATIONS["IDEALAB"]))
 
+    custom_setting = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key == f"office_location_{branch_val}"
+    ).first()
+    if custom_setting and custom_setting.value:
+        try:
+            import json
+            cfg = json.loads(custom_setting.value)
+            office["name"] = cfg.get("name", office["name"])
+            office["lat"] = float(cfg.get("lat", office["lat"]))
+            office["lng"] = float(cfg.get("lng", office["lng"]))
+            office["radius_meters"] = float(cfg.get("radius_meters", office["radius_meters"]))
+        except Exception:
+            pass
+
+    remote_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
+
     return {
         "date": today.isoformat(),
         "employee_id": emp.id,
         "branch": branch_val,
         "office_location": office,
+        "allow_remote_checkin": remote_setting.value == "true" if remote_setting else False,
         "attendance": schemas.AttendanceOut.from_orm(att) if att else None,
     }
+
+
+@router.post("/set-office-location")
+def set_office_location(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+):
+    import json
+    branch = payload.get("branch", "IDEALAB")
+    lat = float(payload.get("lat", 17.4399))
+    lng = float(payload.get("lng", 78.3812))
+    radius = float(payload.get("radius_meters", 1000.0))
+    name = payload.get("name", f"{branch} Office Premises")
+
+    data = json.dumps({"name": name, "lat": lat, "lng": lng, "radius_meters": radius})
+
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == f"office_location_{branch}").first()
+    if setting:
+        setting.value = data
+    else:
+        db.add(models.SystemSetting(key=f"office_location_{branch}", value=data))
+
+    db.commit()
+    log_audit(db, current_user, "UPDATE_OFFICE_LOCATION", branch, f"Set office location: {name} ({lat}, {lng}, r={radius}m)")
+    return {"message": f"Updated office location for {branch}", "office": {"name": name, "lat": lat, "lng": lng, "radius_meters": radius}}
+
+
+@router.post("/toggle-remote-checkin")
+def toggle_remote_checkin(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+):
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
+    if setting:
+        setting.value = "false" if setting.value == "true" else "true"
+    else:
+        setting = models.SystemSetting(key="allow_remote_checkin", value="true")
+        db.add(setting)
+
+    db.commit()
+    log_audit(db, current_user, "TOGGLE_REMOTE_CHECKIN", "System", f"Set allow_remote_checkin to {setting.value}")
+    return {"allow_remote_checkin": setting.value == "true"}
 
 
 @router.get("", response_model=List[schemas.AttendanceOut])
@@ -215,10 +316,7 @@ def check_in(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if not current_user.employee:
-        raise HTTPException(status_code=404, detail="Employee profile not found")
-
-    emp = current_user.employee
+    emp = get_or_create_user_employee(db, current_user)
     today = date.today()
     existing = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
@@ -227,16 +325,19 @@ def check_in(
     if existing and existing.check_in:
         raise HTTPException(status_code=400, detail="Already checked in today")
 
+    user_lat = payload.latitude if payload.latitude is not None else 0.0
+    user_lng = payload.longitude if payload.longitude is not None else 0.0
+
     # Validate office location geofence
-    office, dist = validate_office_location(db, emp, payload.latitude, payload.longitude)
+    office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
     now = datetime.utcnow()
     is_late = now.hour > 9 or (now.hour == 9 and now.minute > 30)
 
     if existing:
         existing.check_in = now
-        existing.check_in_lat = payload.latitude
-        existing.check_in_lng = payload.longitude
+        existing.check_in_lat = user_lat
+        existing.check_in_lng = user_lng
         existing.status = models.AttendanceStatusEnum.PRESENT
         existing.is_late = is_late
         if payload.notes:
@@ -247,8 +348,8 @@ def check_in(
             employee_id=emp.id,
             date=today,
             check_in=now,
-            check_in_lat=payload.latitude,
-            check_in_lng=payload.longitude,
+            check_in_lat=user_lat,
+            check_in_lng=user_lng,
             status=models.AttendanceStatusEnum.PRESENT,
             is_late=is_late,
             notes=payload.notes,
@@ -267,10 +368,7 @@ def check_out(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if not current_user.employee:
-        raise HTTPException(status_code=404, detail="Employee profile not found")
-
-    emp = current_user.employee
+    emp = get_or_create_user_employee(db, current_user)
     today = date.today()
     att = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
@@ -282,13 +380,16 @@ def check_out(
     if att.check_out:
         raise HTTPException(status_code=400, detail="Already checked out today")
 
+    user_lat = payload.latitude if payload.latitude is not None else 0.0
+    user_lng = payload.longitude if payload.longitude is not None else 0.0
+
     # Validate office location geofence
-    office, dist = validate_office_location(db, emp, payload.latitude, payload.longitude)
+    office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
     now = datetime.utcnow()
     att.check_out = now
-    att.check_out_lat = payload.latitude
-    att.check_out_lng = payload.longitude
+    att.check_out_lat = user_lat
+    att.check_out_lng = user_lng
 
     hours = (now - att.check_in).total_seconds() / 3600.0
     if hours > 9:
