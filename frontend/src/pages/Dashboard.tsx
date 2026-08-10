@@ -53,6 +53,7 @@ interface EmployeeDetail {
   employment_type: string;
   status: string;
   basic_salary?: number;
+  profile_photo_url?: string;
 }
 
 interface LeaveBalance {
@@ -150,9 +151,13 @@ export default function Dashboard() {
         <div className="card p-5 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300 text-lg font-bold shrink-0">
-                {empDetail ? `${empDetail.first_name[0]}${empDetail.last_name[0]}` : user?.email[0].toUpperCase()}
-              </div>
+              {empDetail?.profile_photo_url ? (
+                <img src={empDetail.profile_photo_url} alt="Profile" className="h-12 w-12 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shadow-sm shrink-0" />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300 text-lg font-bold shrink-0">
+                  {empDetail ? `${empDetail.first_name[0]}${empDetail.last_name[0]}` : user?.email[0].toUpperCase()}
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">

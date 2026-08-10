@@ -37,9 +37,16 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
   const [showPalette, setShowPalette] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [empPhoto, setEmpPhoto] = useState<string | null>(null);
   
   const notifRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.get("/api/employees/me").then((r) => {
+      if (r.data?.profile_photo_url) setEmpPhoto(r.data.profile_photo_url);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get("/api/notifications").then((r) => {
@@ -217,9 +224,13 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
 
         {/* User */}
         <div className="flex items-center gap-2 pl-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
-            {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}
-          </div>
+          {empPhoto ? (
+            <img src={empPhoto} alt="User profile" className="h-8 w-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm shrink-0" />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
+              {user?.full_name ? user.full_name[0] : user?.email[0].toUpperCase()}
+            </div>
+          )}
           <div className="hidden text-left sm:block">
             <p className="text-xs font-semibold leading-tight">{user?.full_name || user?.email}</p>
             <p className="text-[10px] capitalize text-slate-400">{user?.role?.replace("_", " ").toLowerCase()}</p>
