@@ -62,6 +62,24 @@ interface LeaveBalance {
   used: number;
 }
 
+function formatDateOfJoining(val?: string | null): string {
+  if (!val) return new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  if (val.includes("/")) {
+    const parts = val.split("/");
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      const dt = new Date(y, m, d);
+      if (!isNaN(dt.getTime())) {
+        return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      }
+    }
+  }
+  const dt = new Date(val);
+  return !isNaN(dt.getTime()) ? dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : val;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<RecentData | null>(null);
@@ -76,11 +94,9 @@ export default function Dashboard() {
     api.get("/api/dashboard/stats").then((r) => setStats(r.data)).catch(() => {});
     api.get("/api/dashboard/recent-activity").then((r) => setRecent(r.data)).catch(() => {});
 
-    if (user?.employee_id) {
-      api.get(`/api/employees/${user.employee_id}`).then((r) => setEmpDetail(r.data)).catch(() => {});
-      api.get(`/api/employees/${user.employee_id}/leave-balances`).then((r) => setBalances(r.data)).catch(() => {});
-    }
-  }, [user?.employee_id]);
+    api.get("/api/employees/me").then((r) => setEmpDetail(r.data)).catch(() => {});
+    api.get("/api/leaves/balances").then((r) => setBalances(r.data)).catch(() => {});
+  }, [user]);
 
   const fmt = (num: number) => `₹${(num / 100000).toFixed(1)}L`;
 
@@ -195,7 +211,7 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Date of Joining</p>
                 <p className="text-xs sm:text-sm font-medium text-slate-900 dark:text-white truncate">
-                  {empDetail?.date_of_joining ? new Date(empDetail.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                  {formatDateOfJoining(empDetail?.date_of_joining)}
                 </p>
               </div>
             </div>

@@ -152,6 +152,20 @@ def import_employees(
     return {"imported": created}
 
 
+@router.get("/me", response_model=schemas.EmployeeOut)
+def get_my_employee_profile(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    from app.routers.attendance import get_or_create_user_employee
+    emp = get_or_create_user_employee(db, current_user)
+    if not emp.date_of_joining:
+        emp.date_of_joining = date.today()
+        db.commit()
+        db.refresh(emp)
+    return emp
+
+
 @router.get("/{employee_id}", response_model=schemas.EmployeeOut)
 def get_employee(
     employee_id: str,
