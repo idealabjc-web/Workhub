@@ -420,7 +420,7 @@ def run():
         for u in users:
             db.add(models.Notification(
                 user_id=u.id,
-                title="Welcome to HR Portal 2.1",
+                title="Welcome to LOTUS-HR Portal 2.1",
                 message="Your account is active. Explore your portal features today!",
                 type="SUCCESS",
             ))

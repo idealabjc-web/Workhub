@@ -54,7 +54,7 @@ export default function Login() {
                 <Building2 size={20} />
               </div>
               <div>
-                <span className="font-bold text-lg leading-tight block">Workhub HR</span>
+                <span className="font-bold text-lg leading-tight block">LOTUS-HR Portal</span>
                 <span className="text-[10px] text-brand-200 uppercase tracking-widest">Enterprise Portal</span>
               </div>
             </div>
@@ -66,7 +66,7 @@ export default function Login() {
                 Idealab · UGC · Vizag — manage employees, attendance, leave, payroll and revenue in one place.
               </p>
             </div>
-            <p className="text-xs text-brand-200 relative z-10">© {new Date().getFullYear()} Workhub HR Portal</p>
+            <p className="text-xs text-brand-200 relative z-10">© {new Date().getFullYear()} LOTUS-HR Portal</p>
           </div>
 
           <div className="p-6 sm:p-10 flex flex-col justify-center">

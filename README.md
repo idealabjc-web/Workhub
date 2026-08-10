@@ -1,4 +1,4 @@
-# HR & Company Operations Portal (Idealab · UGC · Vizag)
+# LOTUS-HR Portal (Idealab · UGC · Vizag)
 
 A modern full-stack HR + Operations Portal built with **React (Vite + TypeScript + Tailwind)** on the frontend and **FastAPI + PostgreSQL** on the backend. Supports dual experience views for **HR/Admin Portal** vs **Employee Self-Service Portal** with strict Role-Based Access Control (RBAC).
 

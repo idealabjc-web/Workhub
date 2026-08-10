@@ -133,7 +133,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
             <Building2 size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold leading-tight text-slate-900 dark:text-white">HR Portal</p>
+            <p className="text-sm font-bold leading-tight text-slate-900 dark:text-white">LOTUS-HR Portal</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-wider">
               {isEmployee ? "Employee Portal" : "HR & Admin Portal"}
             </p>
@@ -195,7 +195,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
       </nav>
 
       <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 font-medium">
-        v2.1.0 · Workhub HR Portal
+        v2.1.0 · LOTUS-HR Portal
       </div>
     </aside>
   );

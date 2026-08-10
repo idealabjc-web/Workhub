@@ -98,7 +98,7 @@ export default function Onboarding() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/10 text-brand-400 text-xs font-semibold mb-3 border border-brand-500/20">
             <Sparkles size={14} /> Employee Setup Portal
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Complete Your Workhub Profile</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Complete Your LOTUS-HR Profile</h1>
           <p className="text-sm text-slate-400 mt-2">Enter your employee details to activate your portal access.</p>
         </div>
 

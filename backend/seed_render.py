@@ -114,7 +114,7 @@ for name, hdate in holidays:
 if db.query(models.Announcement).count() == 0:
     db.add(models.Announcement(
         id=str(uuid.uuid4()),
-        title="Welcome to Idealab Workhub!",
+        title="Welcome to LOTUS-HR Portal!",
         content="We are excited to launch our new HR portal. Please update your profile and explore all features.",
         priority="HIGH",
     ))
