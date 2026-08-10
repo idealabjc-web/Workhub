@@ -237,8 +237,29 @@ export default function EmployeeProfile() {
               editEl={<input type="email" className="input text-sm" value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />} />
             <EditableField label="Phone" value={emp.phone || ""} editing={editing}
               editEl={<input className="input text-sm" value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />} />
-            <EditableField label="Profile Photo URL" value={emp.profile_photo_url || "—"} editing={editing}
-              editEl={<input placeholder="https://example.com/photo.jpg" className="input text-sm" value={editForm.profile_photo_url || ""} onChange={(e) => setEditForm({ ...editForm, profile_photo_url: e.target.value })} />} />
+            <EditableField
+              label="Profile Photo URL"
+              value={
+                emp.profile_photo_url
+                  ? emp.profile_photo_url.startsWith("data:image/")
+                    ? "Uploaded Photo (Image File)"
+                    : emp.profile_photo_url
+                  : "—"
+              }
+              editing={editing}
+              editEl={
+                <input
+                  placeholder="https://example.com/photo.jpg"
+                  className="input text-sm max-w-full truncate"
+                  value={
+                    editForm.profile_photo_url?.startsWith("data:image/")
+                      ? "Uploaded Photo (Image File)"
+                      : editForm.profile_photo_url || ""
+                  }
+                  onChange={(e) => setEditForm({ ...editForm, profile_photo_url: e.target.value })}
+                />
+              }
+            />
             <EditableField label="Date of Birth" value={emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"} editing={editing}
               editEl={<input type="date" className="input text-sm" value={editForm.date_of_birth?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })} />} />
             <EditableField label="Gender" value={emp.gender || "—"} editing={editing}
@@ -421,9 +442,9 @@ export default function EmployeeProfile() {
 
 function Field({ label, value, icon, mono }: { label: string; value: string; icon?: React.ReactNode; mono?: boolean }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className={`text-sm font-medium flex items-center gap-1 ${mono ? "font-mono text-xs text-slate-500" : ""}`}>
+      <p className={`text-sm font-medium flex items-center gap-1 truncate max-w-full overflow-hidden text-ellipsis ${mono ? "font-mono text-xs text-slate-500" : ""}`} title={value}>
         {icon}{value}
       </p>
     </div>
