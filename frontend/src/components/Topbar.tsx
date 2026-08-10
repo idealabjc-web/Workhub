@@ -1,6 +1,6 @@
-import { Moon, Sun, LogOut, Search, Bell, X, Menu } from "lucide-react";
+import { Moon, Sun, LogOut, Search, Bell, X, Menu, Palette } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme, ColorTheme } from "../context/ThemeContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import api from "../api/client";
@@ -18,17 +18,28 @@ interface TopbarProps {
   onToggleMobile?: () => void;
 }
 
+const COLOR_OPTIONS: { id: ColorTheme; label: string; colorHex: string }[] = [
+  { id: "orange", label: "Lotus Orange & White", colorHex: "#ea580c" },
+  { id: "blue", label: "Classic Blue", colorHex: "#2563eb" },
+  { id: "emerald", label: "Emerald Green", colorHex: "#059669" },
+  { id: "purple", label: "Royal Purple", colorHex: "#7c3aed" },
+  { id: "teal", label: "Ocean Teal", colorHex: "#0d9488" },
+];
+
 export default function Topbar({ onToggleMobile }: TopbarProps) {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, colorTheme, setColorTheme } = useTheme();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [showNotif, setShowNotif] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  
   const notifRef = useRef<HTMLDivElement>(null);
+  const paletteRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get("/api/notifications").then((r) => {
@@ -37,11 +48,14 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
     }).catch(() => {});
   }, [showNotif]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotif(false);
+      }
+      if (paletteRef.current && !paletteRef.current.contains(e.target as Node)) {
+        setShowPalette(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -94,8 +108,50 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* Theme toggle */}
-        <button onClick={toggleTheme} className="btn-secondary !px-2.5 !py-2" title="Toggle theme">
+        {/* Color Palette Selector */}
+        <div className="relative" ref={paletteRef}>
+          <button
+            onClick={() => setShowPalette((s) => !s)}
+            className="btn-secondary !px-2.5 !py-2 flex items-center gap-1.5"
+            title="Change Theme Color Palette"
+          >
+            <Palette size={16} className="text-brand-500" />
+            <span className="hidden md:inline text-xs font-semibold text-slate-600 dark:text-slate-300">Theme</span>
+          </button>
+
+          {showPalette && (
+            <div className="absolute right-0 top-full mt-2 w-52 card p-3 shadow-xl z-50 space-y-2">
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 pb-2">
+                Color Theme Palette
+              </p>
+              <div className="space-y-1">
+                {COLOR_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      setColorTheme(opt.id);
+                      setShowPalette(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition ${
+                      colorTheme === opt.id
+                        ? "bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <span
+                      className="h-4 w-4 rounded-full shrink-0 border border-black/10 shadow-sm"
+                      style={{ backgroundColor: opt.colorHex }}
+                    />
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dark/Light mode toggle */}
+        <button onClick={toggleTheme} className="btn-secondary !px-2.5 !py-2" title="Toggle Light/Dark Mode">
           {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
         </button>
 

@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: "#eef4ff",
-          100: "#dce8ff",
-          200: "#b8d1ff",
-          300: "#8bb3ff",
-          400: "#5c8dff",
-          500: "#3366ff",
-          600: "#254cdb",
-          700: "#1c3bb0",
-          800: "#182f8a",
-          900: "#152a6e",
+          50: "var(--color-brand-50, #fff7ed)",
+          100: "var(--color-brand-100, #ffedd5)",
+          200: "var(--color-brand-200, #fed7aa)",
+          300: "var(--color-brand-300, #fdba74)",
+          400: "var(--color-brand-400, #fb923c)",
+          500: "var(--color-brand-500, #ea580c)",
+          600: "var(--color-brand-600, #c2410c)",
+          700: "var(--color-brand-700, #9a3412)",
+          800: "var(--color-brand-800, #7c2d12)",
+          900: "var(--color-brand-900, #431407)",
         },
       },
       borderRadius: {
