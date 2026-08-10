@@ -18,19 +18,19 @@ OFFICE_LOCATIONS = {
         "name": "Lotus Idealab Campus",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 500.0,
+        "radius_meters": 100.0,
     },
     "UGC": {
         "name": "Lotus UGC Office",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 500.0,
+        "radius_meters": 100.0,
     },
     "VIZAG": {
         "name": "Lotus Vizag Office",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 500.0,
+        "radius_meters": 100.0,
     },
 }
 
