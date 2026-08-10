@@ -43,6 +43,7 @@ const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", password: "",
   phone: "", designation: "", branch: "IDEALAB", role: "EMPLOYEE",
   department_id: "", employment_type: "Full-Time", basic_salary: "",
+  date_of_joining: new Date().toISOString().slice(0, 10), gender: "Male",
 };
 
 export default function Employees() {
@@ -285,12 +286,15 @@ export default function Employees() {
               <option value="FINANCE">Finance</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
-            <select className="input text-sm" value={form.employment_type} onChange={(e) => setForm({ ...form, employment_type: e.target.value })}>
-              <option value="Full-Time">Full-Time</option>
-              <option value="Part-Time">Part-Time</option>
-              <option value="Contract">Contract</option>
-              <option value="Intern">Intern</option>
+            <select className="input text-sm" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+              <option value="Male">Male (6 Leaves/Yr)</option>
+              <option value="Female">Female (12 Leaves/Yr)</option>
+              <option value="Other">Other</option>
             </select>
+            <div className="flex flex-col">
+              <label className="text-[10px] text-slate-400 font-semibold mb-0.5">Date of Joining *</label>
+              <input required type="date" className="input text-sm" value={form.date_of_joining} onChange={(e) => setForm({ ...form, date_of_joining: e.target.value })} />
+            </div>
             <input type="number" placeholder="Basic Salary (₹)" className="input text-sm" value={form.basic_salary} onChange={(e) => setForm({ ...form, basic_salary: e.target.value })} />
           </div>
           <div className="flex gap-2">

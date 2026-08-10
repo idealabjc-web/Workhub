@@ -110,11 +110,14 @@ class EmployeeCreate(BaseModel):
 
 
 class EmployeeUpdate(BaseModel):
+    employee_number: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     blood_group: Optional[str] = None
     date_of_birth: Optional[datetime.date] = None
+    date_of_joining: Optional[datetime.date] = None
     gender: Optional[str] = None
     address: Optional[str] = None
     emergency_contact: Optional[str] = None

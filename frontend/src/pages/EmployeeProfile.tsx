@@ -205,11 +205,15 @@ export default function EmployeeProfile() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="card p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Personal Information</h3>
-            <Field label="Full Name" value={`${emp.first_name} ${emp.last_name}`} />
-            <Field label="Email" value={emp.email} icon={<Mail size={13} />} />
+            <EditableField label="First Name" value={emp.first_name} editing={editing}
+              editEl={<input className="input text-sm" value={editForm.first_name || ""} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} />} />
+            <EditableField label="Last Name" value={emp.last_name} editing={editing}
+              editEl={<input className="input text-sm" value={editForm.last_name || ""} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} />} />
+            <EditableField label="Email" value={emp.email} icon={<Mail size={13} />} editing={editing}
+              editEl={<input type="email" className="input text-sm" value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />} />
             <EditableField label="Phone" value={emp.phone || ""} editing={editing}
               editEl={<input className="input text-sm" value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />} />
-            <EditableField label="Date of Birth" value={emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString() : "—"} editing={editing}
+            <EditableField label="Date of Birth" value={emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"} editing={editing}
               editEl={<input type="date" className="input text-sm" value={editForm.date_of_birth?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })} />} />
             <EditableField label="Gender" value={emp.gender || "—"} editing={editing}
               editEl={
@@ -239,9 +243,9 @@ export default function EmployeeProfile() {
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">Leave Balance</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {leaveBalances.map((lb) => (
+                  {leaveBalances.slice(0, 2).map((lb) => (
                     <div key={lb.id} className="rounded-lg border border-slate-100 dark:border-slate-800 p-2">
-                      <p className="text-xs text-slate-400">{lb.leave_type.replace("_", " ")}</p>
+                      <p className="text-xs text-slate-400">Annual Quota</p>
                       <p className="text-sm font-semibold">{lb.total - lb.used} <span className="text-xs font-normal text-slate-400">/ {lb.total} left</span></p>
                     </div>
                   ))}
@@ -256,9 +260,17 @@ export default function EmployeeProfile() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="card p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Employment Details</h3>
-            <Field label="Employee Number" value={emp.employee_number} />
-            <Field label="Date of Joining" value={new Date(emp.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} />
-            <Field label="Department" value={deptName} />
+            <EditableField label="Employee Number" value={emp.employee_number} editing={editing}
+              editEl={<input className="input text-sm" value={editForm.employee_number || ""} onChange={(e) => setEditForm({ ...editForm, employee_number: e.target.value })} />} />
+            <EditableField label="Date of Joining" value={emp.date_of_joining ? new Date(emp.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"} editing={editing}
+              editEl={<input type="date" className="input text-sm" value={editForm.date_of_joining?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_joining: e.target.value })} />} />
+            <EditableField label="Department" value={deptName} editing={editing}
+              editEl={
+                <select className="input text-sm" value={editForm.department_id || ""} onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value })}>
+                  <option value="">Select Department</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              } />
             <EditableField label="Designation" value={emp.designation || "—"} editing={editing}
               editEl={<input className="input text-sm" value={editForm.designation || ""} onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })} />} />
             <EditableField label="Branch" value={emp.branch} editing={editing}
@@ -390,7 +402,7 @@ function Field({ label, value, icon, mono }: { label: string; value: string; ico
   );
 }
 
-function EditableField({ label, value, editing, editEl }: { label: string; value: string; editing: boolean; editEl: React.ReactNode }) {
+function EditableField({ label, value, editing, editEl, icon }: { label: string; value: string; editing: boolean; editEl: React.ReactNode; icon?: React.ReactNode }) {
   if (editing) {
     return (
       <div>
@@ -399,5 +411,5 @@ function EditableField({ label, value, editing, editEl }: { label: string; value
       </div>
     );
   }
-  return <Field label={label} value={value} />;
+  return <Field label={label} value={value} icon={icon} />;
 }
