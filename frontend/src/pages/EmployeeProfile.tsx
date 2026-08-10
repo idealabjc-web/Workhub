@@ -87,16 +87,23 @@ export default function EmployeeProfile() {
     api.get(`/api/employees/${targetId}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
   }, [id]);
 
+  const [saveError, setSaveError] = useState("");
+
   const handleSave = async () => {
     if (!emp) return;
     setSaving(true);
+    setSaveError("");
     try {
       const targetId = id === "me" ? "me" : emp.id;
       const r = await api.patch(`/api/employees/${targetId}`, editForm);
       setEmp(r.data);
+      setEditForm(r.data);
       setEditing(false);
-    } catch { }
-    setSaving(false);
+    } catch (err: any) {
+      setSaveError(err.response?.data?.detail || "Failed to save profile changes");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddDoc = async () => {
@@ -150,17 +157,29 @@ export default function EmployeeProfile() {
             <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
               <Check size={14} /> {saving ? "Saving..." : "Save"}
             </button>
-            <button onClick={() => { setEditing(false); setEditForm(emp); }} className="btn-secondary gap-2">
+            <button onClick={() => { setEditing(false); setEditForm(emp); setSaveError(""); }} className="btn-secondary gap-2">
               <X size={14} /> Cancel
             </button>
           </div>
         )}
       </div>
 
+      {saveError && (
+        <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800">
+          {saveError}
+        </div>
+      )}
+
       {/* Profile Card */}
       <div className="card p-5 flex flex-wrap items-center gap-5">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-100 text-2xl font-bold text-brand-700 dark:bg-brand-900 dark:text-brand-300 shrink-0">
-          {emp.first_name[0]}{emp.last_name[0]}
+        <div className="relative group shrink-0">
+          {emp.profile_photo_url ? (
+            <img src={emp.profile_photo_url} alt={`${emp.first_name} ${emp.last_name}`} className="h-20 w-20 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm" />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-100 text-2xl font-bold text-brand-700 dark:bg-brand-900 dark:text-brand-300 shrink-0">
+              {emp.first_name?.[0]}{emp.last_name?.[0]}
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0 space-y-1">
           <h2 className="text-lg font-bold">{emp.first_name} {emp.last_name}</h2>
@@ -170,6 +189,7 @@ export default function EmployeeProfile() {
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
             <span className={`badge ${branchColors[emp.branch] || ""}`}>{emp.branch}</span>
+            {(emp as any).team_name && <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">{(emp as any).team_name}</span>}
             <span className="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{emp.employment_type}</span>
             <span className={`badge ${emp.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{emp.status}</span>
           </div>
@@ -217,6 +237,8 @@ export default function EmployeeProfile() {
               editEl={<input type="email" className="input text-sm" value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />} />
             <EditableField label="Phone" value={emp.phone || ""} editing={editing}
               editEl={<input className="input text-sm" value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />} />
+            <EditableField label="Profile Photo URL" value={emp.profile_photo_url || "—"} editing={editing}
+              editEl={<input placeholder="https://example.com/photo.jpg" className="input text-sm" value={editForm.profile_photo_url || ""} onChange={(e) => setEditForm({ ...editForm, profile_photo_url: e.target.value })} />} />
             <EditableField label="Date of Birth" value={emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"} editing={editing}
               editEl={<input type="date" className="input text-sm" value={editForm.date_of_birth?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })} />} />
             <EditableField label="Gender" value={emp.gender || "—"} editing={editing}
@@ -268,11 +290,13 @@ export default function EmployeeProfile() {
               editEl={<input className="input text-sm" value={editForm.employee_number || ""} onChange={(e) => setEditForm({ ...editForm, employee_number: e.target.value })} />} />
             <EditableField label="Date of Joining" value={emp.date_of_joining ? new Date(emp.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"} editing={editing}
               editEl={<input type="date" className="input text-sm" value={editForm.date_of_joining?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_joining: e.target.value })} />} />
-            <EditableField label="Department" value={deptName} editing={editing}
+            <EditableField label="Team / Brand" value={(emp as any).team_name || deptName || "—"} editing={editing}
               editEl={
-                <select className="input text-sm" value={editForm.department_id || ""} onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value })}>
-                  <option value="">Select Department</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                <select className="input text-sm" value={(editForm as any).team_name || ""} onChange={(e) => setEditForm({ ...editForm, team_name: e.target.value } as any)}>
+                  <option value="">Select Team / Brand</option>
+                  {["IDIAS", "VOICE", "WYN", "WYNX", "NEXT", "PROSUMMITS", "ICON", "VIZAG", "SIGNATURE", "IDEALAB"].map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
               } />
             <EditableField label="Designation" value={emp.designation || "—"} editing={editing}

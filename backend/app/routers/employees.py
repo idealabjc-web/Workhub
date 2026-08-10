@@ -182,6 +182,27 @@ def get_employee(
     return employee
 
 
+@router.patch("/me", response_model=schemas.EmployeeOut)
+def update_my_employee_profile(
+    payload: schemas.EmployeeUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    from app.routers.attendance import get_or_create_user_employee
+    employee = get_or_create_user_employee(db, current_user)
+    data = payload.model_dump(exclude_unset=True)
+
+    for field, value in data.items():
+        setattr(employee, field, value)
+    db.commit()
+    db.refresh(employee)
+
+    from app.routers.leaves import sync_employee_leave_balances
+    sync_employee_leave_balances(db, employee)
+
+    return employee
+
+
 @router.patch("/{employee_id}", response_model=schemas.EmployeeOut)
 def update_employee(
     employee_id: str,
@@ -189,6 +210,9 @@ def update_employee(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    if employee_id == "me":
+        return update_my_employee_profile(payload, db, current_user)
+
     employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
