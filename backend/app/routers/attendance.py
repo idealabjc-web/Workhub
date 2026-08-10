@@ -15,21 +15,21 @@ router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 # Default Office Locations (Branch -> {name, lat, lng, radius_meters})
 OFFICE_LOCATIONS = {
     "IDEALAB": {
-        "name": "Idealab Main Campus",
-        "lat": 17.4399,
-        "lng": 78.3812,
+        "name": "Lotus Idealab Campus",
+        "lat": 17.478938,
+        "lng": 78.393835,
         "radius_meters": 500.0,
     },
     "UGC": {
-        "name": "UGC Office Campus",
-        "lat": 17.4486,
-        "lng": 78.3742,
+        "name": "Lotus UGC Office",
+        "lat": 17.478938,
+        "lng": 78.393835,
         "radius_meters": 500.0,
     },
     "VIZAG": {
-        "name": "Vizag Tech Park Office",
-        "lat": 17.7231,
-        "lng": 83.3012,
+        "name": "Lotus Vizag Office",
+        "lat": 17.478938,
+        "lng": 78.393835,
         "radius_meters": 500.0,
     },
 }
