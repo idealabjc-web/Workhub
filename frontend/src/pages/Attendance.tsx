@@ -43,6 +43,14 @@ const ABBR_TO_STATUS: Record<string, string> = {
   P: "PRESENT", A: "ABSENT", L: "LEAVE", HD: "HALF_DAY", WFH: "WFH", H: "HOLIDAY", WO: "WEEK_OFF",
 };
 
+function formatLocalTime(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
+  const normalized = hasTimezone ? dateStr : `${dateStr}Z`;
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function Attendance() {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
@@ -347,8 +355,8 @@ export default function Attendance() {
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded border font-bold text-[10px] ${cfg.cls}`}>{cfg.abbr} - {cfg.name}</span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.check_in ? new Date(r.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.check_out ? new Date(r.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
                     <td className="px-4 py-3 text-slate-400">{r.notes || "—"}</td>
                   </tr>
                 );

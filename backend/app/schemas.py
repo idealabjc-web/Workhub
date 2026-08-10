@@ -1,6 +1,6 @@
 import datetime
 from typing import Any, List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_serializer
 
 
 # ── Auth & Users ─────────────────────────────────────────────────────────────
@@ -223,6 +223,15 @@ class AttendanceOut(BaseModel):
     is_late: bool
     is_early_logout: bool
     notes: Optional[str] = None
+
+    @field_serializer("check_in", "check_out", mode="plain")
+    def serialize_utc_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
+        if dt is None:
+            return None
+        iso = dt.isoformat()
+        if not iso.endswith("Z") and "+" not in iso:
+            iso += "Z"
+        return iso
 
     class Config:
         from_attributes = True

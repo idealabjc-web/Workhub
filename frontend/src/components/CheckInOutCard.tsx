@@ -33,6 +33,19 @@ interface TodayStatusData {
   attendance: TodayAttendance | null;
 }
 
+function parseUtcDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
+  const normalized = hasTimezone ? dateStr : `${dateStr}Z`;
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
+  const d = parseUtcDate(dateStr);
+  return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : fallback;
+}
+
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
@@ -132,7 +145,9 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       return;
     }
 
-    const checkInTime = new Date(data.attendance.check_in).getTime();
+    const checkInDate = parseUtcDate(data.attendance.check_in);
+    if (!checkInDate) return;
+    const checkInTime = checkInDate.getTime();
 
     const updateTimer = () => {
       const now = new Date().getTime();
@@ -387,7 +402,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
           <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-In Time</p>
           <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-            {att?.check_in ? new Date(att.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not checked in"}
+            {formatLocalTime(att?.check_in, "Not checked in")}
           </p>
           {att?.is_late && <span className="text-[10px] font-bold text-amber-600">Late Check-in</span>}
         </div>
@@ -395,7 +410,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
           <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-Out Time</p>
           <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-            {att?.check_out ? new Date(att.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not checked out"}
+            {formatLocalTime(att?.check_out, "Not checked out")}
           </p>
           {att?.overtime_hours ? (
             <span className="text-[10px] font-bold text-emerald-600">+{att.overtime_hours}h Overtime</span>
