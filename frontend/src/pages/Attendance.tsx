@@ -6,6 +6,7 @@ import {
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import * as XLSX from "xlsx";
+import CheckInOutCard from "../components/CheckInOutCard";
 
 interface AttendanceRow {
   id: string; employee_id: string; date: string; check_in?: string;
@@ -321,7 +322,9 @@ export default function Attendance() {
 
       {/* TAB 1: PERSONAL ATTENDANCE LOG */}
       {activeTab === "personal" && (
-        <div className="card overflow-x-auto">
+        <div className="space-y-4">
+          <CheckInOutCard onStatusChange={loadPersonal} />
+          <div className="card overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-slate-200 uppercase text-[10px] text-slate-400 dark:border-slate-800">
               <tr>
@@ -355,6 +358,7 @@ export default function Attendance() {
               )}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

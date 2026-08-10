@@ -8,6 +8,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import CheckInOutCard from "../components/CheckInOutCard";
 
 interface Stats {
   total_employees: number;
@@ -124,6 +125,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Location-Restricted Daily Check-In & Check-Out Card */}
+      <CheckInOutCard />
 
       {/* PERSONAL IMPORTED PROFILE CARD FOR LOGGED-IN EMPLOYEES */}
       {isEmployeeOnly && (

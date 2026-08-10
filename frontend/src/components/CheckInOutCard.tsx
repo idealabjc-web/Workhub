@@ -1,0 +1,368 @@
+import { useEffect, useState } from "react";
+import { LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ShieldCheck } from "lucide-react";
+import api from "../api/client";
+import { useAuth } from "../context/AuthContext";
+
+interface OfficeLocation {
+  name: string;
+  lat: number;
+  lng: number;
+  radius_meters: number;
+}
+
+interface TodayAttendance {
+  id: string;
+  check_in?: string;
+  check_out?: string;
+  check_in_lat?: number;
+  check_in_lng?: number;
+  check_out_lat?: number;
+  check_out_lng?: number;
+  status: string;
+  is_late: boolean;
+  overtime_hours?: number;
+  notes?: string;
+}
+
+interface TodayStatusData {
+  date: string;
+  employee_id: string;
+  branch: string;
+  office_location: OfficeLocation;
+  attendance: TodayAttendance | null;
+}
+
+export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
+  const { user } = useAuth();
+  const [data, setData] = useState<TodayStatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Geolocation state
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
+
+  // Live work duration counter
+  const [workDuration, setWorkDuration] = useState<string>("");
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/attendance/today-status");
+      setData(res.data);
+    } catch (err: any) {
+      console.error("Failed to fetch today status", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setGettingLocation(true);
+    setGeoError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+        setCoords({ lat: userLat, lng: userLng });
+        setGettingLocation(false);
+      },
+      (err) => {
+        setGettingLocation(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError("Location permission denied. Please allow location access in your browser to check in/out.");
+        } else {
+          setGeoError(`Geolocation error: ${err.message}`);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  useEffect(() => {
+    loadStatus();
+    requestLocation();
+  }, []);
+
+  // Calculate distance whenever coords or office_location changes
+  useEffect(() => {
+    if (!coords || !data?.office_location) return;
+
+    const lat1 = coords.lat;
+    const lon1 = coords.lng;
+    const lat2 = data.office_location.lat;
+    const lon2 = data.office_location.lng;
+
+    const R = 6371000; // Radius of Earth in meters
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const dLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+
+    setDistanceMeters(Math.round(d));
+  }, [coords, data?.office_location]);
+
+  // Live timer for work duration if checked in and not checked out
+  useEffect(() => {
+    if (!data?.attendance?.check_in || data.attendance.check_out) {
+      setWorkDuration("");
+      return;
+    }
+
+    const checkInTime = new Date(data.attendance.check_in).getTime();
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const diffMs = Math.max(0, now - checkInTime);
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+      setWorkDuration(`${hours}h ${mins}m ${secs}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [data?.attendance]);
+
+  const handleCheckIn = async () => {
+    if (!data || !user?.employee_id) return;
+    setError(null);
+    setSuccess(null);
+
+    if (!coords) {
+      setError("Unable to obtain your location. Please enable GPS location services and click 'Acquire Location'.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await api.post("/api/attendance/check-in", {
+        employee_id: user.employee_id,
+        latitude: coords.lat,
+        longitude: coords.lng,
+      });
+      setSuccess("Checked in successfully at office location!");
+      await loadStatus();
+      if (onStatusChange) onStatusChange();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Check-in failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!data || !user?.employee_id) return;
+    setError(null);
+    setSuccess(null);
+
+    if (!coords) {
+      setError("Unable to obtain your location. Please enable GPS location services.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await api.post("/api/attendance/check-out", {
+        employee_id: user.employee_id,
+        latitude: coords.lat,
+        longitude: coords.lng,
+      });
+      setSuccess("Checked out successfully!");
+      await loadStatus();
+      if (onStatusChange) onStatusChange();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Check-out failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card p-5 flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  const att = data?.attendance;
+  const office = data?.office_location;
+
+  const isCheckedIn = Boolean(att?.check_in && !att?.check_out);
+  const isCheckedOut = Boolean(att?.check_in && att?.check_out);
+  const isNotCheckedIn = !att?.check_in;
+
+  const isWithinGeofence = distanceMeters !== null && office ? distanceMeters <= office.radius_meters : false;
+
+  return (
+    <div className="card p-5 space-y-4 border-l-4 border-l-brand-500 shadow-sm">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Clock className="text-brand-500" size={18} /> Daily Check-In & Check-Out
+          </h2>
+          <p className="text-xs text-slate-400">
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
+          </p>
+        </div>
+
+        {/* Current Status Badge */}
+        <div>
+          {isNotCheckedIn && (
+            <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 gap-1 font-semibold">
+              <Clock size={12} /> Not Checked In
+            </span>
+          )}
+          {isCheckedIn && (
+            <span className="badge bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 gap-1 font-semibold animate-pulse">
+              <CheckCircle size={12} /> Checked In ({workDuration})
+            </span>
+          )}
+          {isCheckedOut && (
+            <span className="badge bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 gap-1 font-semibold">
+              <CheckCircle size={12} /> Day Completed
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+          <CheckCircle size={16} className="shrink-0" />
+          <span>{success}</span>
+        </div>
+      )}
+
+      {/* Location Geofence Status */}
+      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <MapPin size={14} className="text-brand-500" /> Assigned Premises: <b>{office?.name}</b>
+          </span>
+          <button
+            onClick={requestLocation}
+            disabled={gettingLocation}
+            className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 disabled:opacity-50"
+          >
+            <Navigation size={12} className={gettingLocation ? "animate-spin" : ""} />
+            {gettingLocation ? "Locating..." : "Refresh GPS"}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+          {geoError ? (
+            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium text-[11px]">
+              <AlertTriangle size={13} /> {geoError}
+            </span>
+          ) : distanceMeters !== null ? (
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${
+                  isWithinGeofence
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
+                }`}
+              >
+                {isWithinGeofence ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
+                {isWithinGeofence ? "Inside Office Location" : "Outside Office Location"}
+              </span>
+              <span className="text-slate-500 text-[11px]">
+                ({distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(2)}km`} from office, max allowed: {office?.radius_meters}m)
+              </span>
+            </div>
+          ) : (
+            <span className="text-slate-400 text-[11px]">Acquiring GPS coordinates...</span>
+          )}
+        </div>
+      </div>
+
+      {/* Today's Timestamps Summary */}
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-In Time</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+            {att?.check_in ? new Date(att.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not checked in"}
+          </p>
+          {att?.is_late && <span className="text-[10px] font-bold text-amber-600">Late Check-in</span>}
+        </div>
+
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-Out Time</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+            {att?.check_out ? new Date(att.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not checked out"}
+          </p>
+          {att?.overtime_hours ? (
+            <span className="text-[10px] font-bold text-emerald-600">+{att.overtime_hours}h Overtime</span>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        {isNotCheckedIn && (
+          <button
+            onClick={handleCheckIn}
+            disabled={actionLoading}
+            className="btn-primary flex-1 gap-2 text-sm font-bold py-2.5 shadow-md hover:shadow-brand-500/20 disabled:opacity-50"
+          >
+            {actionLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <LogIn size={16} />
+            )}
+            Check In Now
+          </button>
+        )}
+
+        {isCheckedIn && (
+          <button
+            onClick={handleCheckOut}
+            disabled={actionLoading}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm py-2.5 transition shadow-md disabled:opacity-50"
+          >
+            {actionLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <LogOut size={16} />
+            )}
+            Check Out
+          </button>
+        )}
+
+        {isCheckedOut && (
+          <div className="w-full text-center py-2 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+            ✅ You have completed check-in and check-out for today.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

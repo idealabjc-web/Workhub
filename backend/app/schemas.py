@@ -182,6 +182,15 @@ class EmployeeDocumentOut(BaseModel):
 
 class AttendanceCheckIn(BaseModel):
     employee_id: str
+    latitude: float
+    longitude: float
+    notes: Optional[str] = None
+
+
+class AttendanceCheckOut(BaseModel):
+    employee_id: str
+    latitude: float
+    longitude: float
 
 
 class AttendanceCreate(BaseModel):
@@ -205,6 +214,10 @@ class AttendanceOut(BaseModel):
     date: datetime.date
     check_in: Optional[datetime.datetime] = None
     check_out: Optional[datetime.datetime] = None
+    check_in_lat: Optional[float] = None
+    check_in_lng: Optional[float] = None
+    check_out_lat: Optional[float] = None
+    check_out_lng: Optional[float] = None
     status: str
     overtime_hours: float
     is_late: bool
