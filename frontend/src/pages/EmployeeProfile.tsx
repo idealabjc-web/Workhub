@@ -238,7 +238,7 @@ export default function EmployeeProfile() {
             <EditableField label="Phone" value={emp.phone || ""} editing={editing}
               editEl={<input className="input text-sm" value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />} />
             <EditableField
-              label="Profile Photo URL"
+              label="Profile Photo"
               value={
                 emp.profile_photo_url
                   ? emp.profile_photo_url.startsWith("data:image/")
@@ -248,16 +248,54 @@ export default function EmployeeProfile() {
               }
               editing={editing}
               editEl={
-                <input
-                  placeholder="https://example.com/photo.jpg"
-                  className="input text-sm max-w-full truncate"
-                  value={
-                    editForm.profile_photo_url?.startsWith("data:image/")
-                      ? "Uploaded Photo (Image File)"
-                      : editForm.profile_photo_url || ""
-                  }
-                  onChange={(e) => setEditForm({ ...editForm, profile_photo_url: e.target.value })}
-                />
+                <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-3">
+                    {editForm.profile_photo_url ? (
+                      <img src={editForm.profile_photo_url} alt="Preview" className="h-12 w-12 rounded-xl object-cover border shrink-0" />
+                    ) : (
+                      <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">
+                        No Photo
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <label className="btn-secondary !py-1 !px-2.5 text-xs gap-1.5 cursor-pointer inline-flex items-center">
+                        <Upload size={13} /> Choose Image File
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (evt) => {
+                                if (evt.target?.result) {
+                                  setEditForm((prev) => ({ ...prev, profile_photo_url: evt.target!.result as string }));
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      {editForm.profile_photo_url && (
+                        <button
+                          type="button"
+                          onClick={() => setEditForm((prev) => ({ ...prev, profile_photo_url: "" }))}
+                          className="text-[11px] text-red-500 hover:underline block"
+                        >
+                          Remove Photo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    placeholder="Or paste image URL (https://...)"
+                    className="input text-xs w-full"
+                    value={editForm.profile_photo_url?.startsWith("data:image/") ? "" : editForm.profile_photo_url || ""}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, profile_photo_url: e.target.value }))}
+                  />
+                </div>
               }
             />
             <EditableField label="Date of Birth" value={emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"} editing={editing}
