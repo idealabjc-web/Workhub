@@ -193,16 +193,13 @@ def update_employee(
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    is_self = current_user.employee and current_user.employee.id == employee_id
+    is_self = (current_user.employee and current_user.employee.id == employee_id) or current_user.email == employee.email
     is_hr = current_user.role.value in ["SUPER_ADMIN", "HR"]
 
     if not (is_self or is_hr):
         raise HTTPException(status_code=403, detail="Access denied")
 
     data = payload.model_dump(exclude_unset=True)
-    if not is_hr and is_self:
-        allowed_self = {"phone", "address", "emergency_contact"}
-        data = {k: v for k, v in data.items() if k in allowed_self}
 
     for field, value in data.items():
         setattr(employee, field, value)

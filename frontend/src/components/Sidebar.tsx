@@ -53,7 +53,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
           label: "",
           items: [
             { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["EMPLOYEE"] },
-            { to: `/employees/${user?.employee_id || ""}`, label: "My Profile", icon: User, roles: ["EMPLOYEE"] },
+            { to: "/employees/me", label: "My Profile", icon: User, roles: ["EMPLOYEE"] },
           ],
         },
         {

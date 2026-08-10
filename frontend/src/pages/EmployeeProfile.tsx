@@ -76,19 +76,23 @@ export default function EmployeeProfile() {
   const [newDocName, setNewDocName] = useState("");
   const [addingDoc, setAddingDoc] = useState(false);
 
+  const canEdit = Boolean(user && (canManage || (emp && (emp.id === user.employee_id || emp.email === user.email)) || id === "me"));
+
   useEffect(() => {
     if (!id) return;
-    api.get(`/api/employees/${id}`).then((r) => { setEmp(r.data); setEditForm(r.data); }).catch(() => navigate("/employees"));
+    const targetId = id === "me" ? "me" : id;
+    api.get(`/api/employees/${targetId}`).then((r) => { setEmp(r.data); setEditForm(r.data); }).catch(() => navigate("/employees"));
     api.get("/api/departments").then((r) => setDepartments(r.data)).catch(() => {});
-    api.get(`/api/employees/${id}/documents`).then((r) => setDocuments(r.data)).catch(() => {});
-    api.get(`/api/employees/${id}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
+    api.get(`/api/employees/${targetId}/documents`).then((r) => setDocuments(r.data)).catch(() => {});
+    api.get(`/api/employees/${targetId}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
   }, [id]);
 
   const handleSave = async () => {
     if (!emp) return;
     setSaving(true);
     try {
-      const r = await api.patch(`/api/employees/${emp.id}`, editForm);
+      const targetId = id === "me" ? "me" : emp.id;
+      const r = await api.patch(`/api/employees/${targetId}`, editForm);
       setEmp(r.data);
       setEditing(false);
     } catch { }
@@ -136,7 +140,7 @@ export default function EmployeeProfile() {
           <h1 className="text-xl font-semibold">{emp.first_name} {emp.last_name}</h1>
           <p className="text-sm text-slate-400">{emp.employee_number} · {emp.designation || "—"}</p>
         </div>
-        {canManage && !editing && (
+        {canEdit && !editing && (
           <button onClick={() => setEditing(true)} className="btn-secondary gap-2">
             <Edit2 size={14} /> Edit Profile
           </button>
