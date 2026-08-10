@@ -236,25 +236,17 @@ export default function Payroll() {
               <th className="px-4 py-3">Employee</th>
               <th className="px-4 py-3">Month</th>
               <th className="px-4 py-3">Basic</th>
-              <th className="px-4 py-3">Gross</th>
-              <th className="px-4 py-3">Deductions</th>
-              <th className="px-4 py-3">Net Salary</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
-              const gross = r.basic_salary + r.hra + r.bonus + r.incentives;
-              const deduct = r.pf + r.esi + r.professional_tax + r.income_tax + r.other_deductions;
               return (
                 <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="px-4 py-3 font-medium">{isFinance ? empName(r.employee_id) : "My Salary"}</td>
                   <td className="px-4 py-3 text-slate-500">{r.month}</td>
                   <td className="px-4 py-3">₹{r.basic_salary.toLocaleString()}</td>
-                  <td className="px-4 py-3">₹{gross.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-red-600">-₹{deduct.toLocaleString()}</td>
-                  <td className="px-4 py-3 font-bold text-emerald-600">₹{r.net_salary.toLocaleString()}</td>
                   <td className="px-4 py-3">
                     {isFinance ? (
                       <select className={`badge border-0 text-xs ${STATUS_COLOR[r.status] || ""}`} value={r.status} onChange={(e) => handleStatusChange(r.id, e.target.value)}>
@@ -277,7 +269,7 @@ export default function Payroll() {
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No payroll records found</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No payroll records found</td></tr>}
           </tbody>
         </table>
       </div>
