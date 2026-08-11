@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import api from "../api/client";
 
 export interface AuthUser {
@@ -25,6 +25,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("hr_token");
+    if (token) {
+      api.get("/api/employees/me").then((r) => {
+        if (r.data) {
+          setUser((prev) => {
+            if (!prev) return prev;
+            const updated: AuthUser = {
+              ...prev,
+              employee_id: r.data.id,
+              full_name: `${r.data.first_name} ${r.data.last_name}`,
+              profile_complete: true,
+            };
+            localStorage.setItem("hr_user", JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   const login = async (email: string, password: string): Promise<AuthUser> => {
     setLoading(true);

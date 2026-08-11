@@ -182,6 +182,53 @@ def get_employee(
     return employee
 
 
+def apply_employee_updates(db: Session, employee: models.Employee, data: dict):
+    if "employee_number" in data and data["employee_number"]:
+        emp_num = str(data["employee_number"]).strip()
+        if emp_num != employee.employee_number:
+            existing = db.query(models.Employee).filter(
+                models.Employee.employee_number == emp_num,
+                models.Employee.id != employee.id
+            ).first()
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Employee number '{emp_num}' is already assigned to {existing.first_name} {existing.last_name}."
+                )
+            data["employee_number"] = emp_num
+
+    if "email" in data and data["email"]:
+        email_val = str(data["email"]).strip().lower()
+        if email_val != employee.email.lower():
+            existing = db.query(models.Employee).filter(
+                models.Employee.email == email_val,
+                models.Employee.id != employee.id
+            ).first()
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Email address '{email_val}' is already assigned to another staff member."
+                )
+            data["email"] = email_val
+
+    for field, value in data.items():
+        setattr(employee, field, value)
+
+    try:
+        db.commit()
+        db.refresh(employee)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to save changes. Duplicate employee number or email detected."
+        )
+
+    from app.routers.leaves import sync_employee_leave_balances
+    sync_employee_leave_balances(db, employee)
+    return employee
+
+
 @router.patch("/me", response_model=schemas.EmployeeOut)
 def update_my_employee_profile(
     payload: schemas.EmployeeUpdate,
@@ -191,16 +238,7 @@ def update_my_employee_profile(
     from app.routers.attendance import get_or_create_user_employee
     employee = get_or_create_user_employee(db, current_user)
     data = payload.model_dump(exclude_unset=True)
-
-    for field, value in data.items():
-        setattr(employee, field, value)
-    db.commit()
-    db.refresh(employee)
-
-    from app.routers.leaves import sync_employee_leave_balances
-    sync_employee_leave_balances(db, employee)
-
-    return employee
+    return apply_employee_updates(db, employee, data)
 
 
 @router.patch("/{employee_id}", response_model=schemas.EmployeeOut)
@@ -224,16 +262,7 @@ def update_employee(
         raise HTTPException(status_code=403, detail="Access denied")
 
     data = payload.model_dump(exclude_unset=True)
-
-    for field, value in data.items():
-        setattr(employee, field, value)
-    db.commit()
-    db.refresh(employee)
-
-    from app.routers.leaves import sync_employee_leave_balances
-    sync_employee_leave_balances(db, employee)
-
-    return employee
+    return apply_employee_updates(db, employee, data)
 
 
 @router.delete("/{employee_id}")

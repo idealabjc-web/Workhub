@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Mail, Lock } from "lucide-react";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
@@ -10,8 +10,18 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login, loginWithGoogle, loading } = useAuth();
+  const { user, login, loginWithGoogle, loading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user && localStorage.getItem("hr_token")) {
+      if (user.profile_complete === false) {
+        navigate("/onboard", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

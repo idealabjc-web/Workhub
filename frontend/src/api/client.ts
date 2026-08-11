@@ -21,10 +21,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem("hr_token");
-      localStorage.removeItem("hr_user");
-      window.location.href = "/login";
+    const isAuthRoute = err.config?.url?.includes("/api/auth/");
+    if (err.response?.status === 401 && !isAuthRoute) {
+      const detail = err.response?.data?.detail;
+      if (detail === "Invalid token" || detail === "Not authenticated" || detail === "Could not validate credentials") {
+        localStorage.removeItem("hr_token");
+        localStorage.removeItem("hr_user");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }
