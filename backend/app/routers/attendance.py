@@ -28,8 +28,8 @@ OFFICE_LOCATIONS = {
     },
     "VIZAG": {
         "name": "Lotus Vizag Office",
-        "lat": 17.478938,
-        "lng": 78.393835,
+        "lat": 17.6829765,
+        "lng": 83.1828647,
         "radius_meters": 100.0,
     },
 }
