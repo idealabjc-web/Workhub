@@ -90,11 +90,24 @@ try:
         emp.status = models.EmployeeStatusEnum.ACTIVE
         print(f"Updated HR Employee record: {first_name} {last_name}")
 
+    # Also update hr@hrportal.com if it exists
+    hr_old_user = db.query(models.User).filter(models.User.email == "hr@hrportal.com").first()
+    if hr_old_user:
+        hr_old_emp = db.query(models.Employee).filter(models.Employee.user_id == hr_old_user.id).first()
+        if hr_old_emp:
+            hr_old_emp.first_name = "Roshitha"
+            hr_old_emp.last_name = "Alluri"
+            hr_old_emp.phone = phone
+            hr_old_emp.gender = "Female"
+            hr_old_emp.designation = designation
+
     db.commit()
     db.refresh(emp)
 
     # Sync female 12 leave quota
     sync_employee_leave_balances(db, emp)
+    if hr_old_emp:
+        sync_employee_leave_balances(db, hr_old_emp)
     db.commit()
 
     print("SUCCESSFULLY SEEDED ROSHITHA ALLURI AS HR MANAGER!")

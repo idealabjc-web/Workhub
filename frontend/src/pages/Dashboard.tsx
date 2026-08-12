@@ -116,8 +116,8 @@ export default function Dashboard() {
                 {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold mt-1.5 leading-tight">
-              Welcome, {empDetail ? `${empDetail.first_name} ${empDetail.last_name}` : user?.full_name || user?.email}! 👋
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              Welcome, {empDetail ? `${empDetail.first_name} ${empDetail.last_name}` : (user?.full_name && user.full_name !== "Hr Staff" && user.full_name !== "Hr" ? user.full_name : "Roshitha Alluri")}! 👋
             </h1>
             <p className="text-xs sm:text-sm text-brand-100 mt-1">
               {isEmployeeOnly

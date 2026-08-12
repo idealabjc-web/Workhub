@@ -232,7 +232,9 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
             </div>
           )}
           <div className="hidden text-left sm:block">
-            <p className="text-xs font-semibold leading-tight">{user?.full_name || user?.email}</p>
+            <p className="text-xs font-semibold leading-tight">
+              {user?.full_name && user.full_name !== "Hr Staff" && user.full_name !== "Hr" ? user.full_name : (user?.role === "HR" ? "Roshitha Alluri" : user?.email)}
+            </p>
             <p className="text-[10px] capitalize text-slate-400">{user?.role?.replace("_", " ").toLowerCase()}</p>
           </div>
         </div>

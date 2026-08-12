@@ -22,7 +22,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem("hr_user");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed: AuthUser = JSON.parse(stored);
+    if (parsed.role === "HR" && (!parsed.full_name || parsed.full_name === "Hr Staff" || parsed.full_name === "Hr")) {
+      parsed.full_name = "Roshitha Alluri";
+    }
+    return parsed;
   });
   const [loading, setLoading] = useState(false);
 
