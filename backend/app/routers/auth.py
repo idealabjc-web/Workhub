@@ -87,7 +87,7 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
         return schemas.TokenResponse(
             access_token=token,
             role=user.role.value,
-            email=user.email,
+            email=str(user.email),
             employee_id=employee_id,
             full_name=full_name,
             profile_complete=profile_complete,

@@ -27,18 +27,18 @@ def get_current_user(
     return user
 
 
-def parse_flexible_date(val: str) -> date:
+def parse_flexible_date(val: Optional[str]) -> Optional[date]:
     if not val:
         return None
-    val = val.strip()
+    val_str = val.strip()
     # Try DD/MM/YYYY format first
     try:
-        return datetime.strptime(val, "%d/%m/%Y").date()
+        return datetime.strptime(val_str, "%d/%m/%Y").date()
     except ValueError:
         pass
     # Try ISO YYYY-MM-DD format
     try:
-        return date.fromisoformat(val)
+        return date.fromisoformat(val_str)
     except ValueError:
         pass
     return None
@@ -115,7 +115,7 @@ def complete_onboarding(
         db.add(emp)
 
     # Mark profile as complete
-    current_user.profile_complete = True
+    setattr(current_user, "profile_complete", True)
 
     try:
         db.commit()

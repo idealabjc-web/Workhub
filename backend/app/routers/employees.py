@@ -123,13 +123,13 @@ def import_employees(
         # Sanitize role & branch enums safely
         valid_role = "EMPLOYEE"
         if emp.role:
-            r_str = str(emp.role).upper()
+            r_str = emp.role.upper()
             if r_str in ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE", "EMPLOYEE"]:
                 valid_role = r_str
 
         valid_branch = "IDEALAB"
         if emp.branch:
-            b_str = str(emp.branch).upper()
+            b_str = emp.branch.upper()
             if b_str in ["IDEALAB", "UGC", "VIZAG"]:
                 valid_branch = b_str
 
@@ -173,7 +173,7 @@ def get_my_employee_profile(
     from app.routers.attendance import get_or_create_user_employee
     emp = get_or_create_user_employee(db, current_user)
     if not emp.date_of_joining:
-        emp.date_of_joining = date.today()
+        setattr(emp, "date_of_joining", date.today())
         db.commit()
         db.refresh(emp)
     return emp

@@ -84,13 +84,14 @@ def update_leave_status(
 
 def get_annual_leaves_by_gender(gender: Optional[str]) -> int:
     """Female -> 12 leaves per year; Male / Other -> 6 leaves per year."""
-    if gender and str(gender).strip().lower() in ["female", "f"]:
+    if gender and gender.strip().lower() in ["female", "f"]:
         return 12
     return 6
 
 
 def sync_employee_leave_balances(db: Session, employee: models.Employee):
-    quota = get_annual_leaves_by_gender(employee.gender)
+    gender_str = str(employee.gender) if employee.gender is not None else None
+    quota = get_annual_leaves_by_gender(gender_str)
 
     for lt in models.LeaveTypeEnum:
         balance = db.query(models.LeaveBalance).filter(

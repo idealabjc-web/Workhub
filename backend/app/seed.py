@@ -138,8 +138,7 @@ def run():
 
             # Employee Documents
             db.add(models.EmployeeDocument(employee_id=emp.id, doc_type="Resume", file_name=f"{fname}_Resume_2026.pdf"))
-            db.add(models.EmployeeDocument(employee_id=emp.id, doc_type="Aadhaar", file_name=f"{fname}_Aadhaar_Card.pdf"))
-            db.add(models.EmployeeDocument(employee_id=emp.id, doc_type="PAN", file_name=f"{fname}_PAN_Card.pdf"))
+            db.add(models.EmployeeDocument(employee_id=emp.id, doc_type="Certificates", file_name=f"{fname}_Degree_Certificate.pdf"))
 
             return emp
 

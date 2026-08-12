@@ -1,6 +1,9 @@
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+
+def utc_now():
+    return datetime.now(timezone.utc)
 from typing import Optional
 
 from sqlalchemy import (
@@ -102,7 +105,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRoleEnum), default=UserRoleEnum.EMPLOYEE, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     is_active = Column(Boolean, default=True)
     profile_complete = Column(Boolean, default=False)
 
@@ -161,7 +164,7 @@ class Employee(Base):
     status = Column(Enum(EmployeeStatusEnum), default=EmployeeStatusEnum.ACTIVE, nullable=False)
     basic_salary = Column(Float, nullable=True, default=0.0)
     profile_photo_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     user = relationship("User", back_populates="employee")
     department = relationship("Department", back_populates="employees")
@@ -184,7 +187,7 @@ class EmployeeDocument(Base):
     doc_type = Column(String, nullable=False)  # Resume, Aadhaar, PAN, Offer Letter, etc.
     file_url = Column(String, nullable=True)
     file_name = Column(String, nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="documents")
 
@@ -206,7 +209,7 @@ class Attendance(Base):
     is_late = Column(Boolean, default=False)
     is_early_logout = Column(Boolean, default=False)
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="attendance_records")
 
@@ -221,7 +224,7 @@ class AttendanceCorrection(Base):
     reason = Column(Text, nullable=False)
     status = Column(Enum(LeaveStatusEnum), default=LeaveStatusEnum.PENDING, nullable=False)
     reviewed_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="corrections")
 
@@ -249,7 +252,7 @@ class Leave(Base):
     status = Column(Enum(LeaveStatusEnum), default=LeaveStatusEnum.PENDING, nullable=False)
     approved_by = Column(String, ForeignKey("users.id"), nullable=True)
     comments = Column(Text, nullable=True)
-    applied_at = Column(DateTime, default=datetime.utcnow)
+    applied_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="leave_requests")
 
@@ -284,7 +287,7 @@ class Payroll(Base):
     net_salary = Column(Float, nullable=False, default=0.0)
     status = Column(String, default="Processed")  # Draft, Processing, Processed, Paid
     paid_at = Column(DateTime, nullable=True)
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="payrolls")
     payslips = relationship("Payslip", back_populates="payroll", cascade="all, delete-orphan")
@@ -299,7 +302,7 @@ class Payslip(Base):
     month = Column(String, nullable=False)
     sent_to_email = Column(String, nullable=True)
     sent_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     payroll = relationship("Payroll", back_populates="payslips")
 
@@ -315,7 +318,7 @@ class Revenue(Base):
     achieved = Column(Float, nullable=False, default=0.0)
     incentives = Column(Float, default=0.0)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     team = relationship("Team", back_populates="revenues")
 
@@ -335,7 +338,7 @@ class Expense(Base):
     payment_method = Column(String, default="Cash")  # Cash, Card, Bank Transfer, UPI
     status = Column(Enum(ExpenseStatusEnum), default=ExpenseStatusEnum.PENDING, nullable=False)
     approved_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="expenses")
 
@@ -352,7 +355,7 @@ class Moment(Base):
     category = Column(String, default="Achievement")  # Birthday, Anniversary, Achievement, Celebration, New Joiner, Promotion
     image_url = Column(String, nullable=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="moments")
 
@@ -368,7 +371,7 @@ class CompanyEvent(Base):
     organizer = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     branch = Column(Enum(BranchEnum), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class Announcement(Base):
@@ -381,7 +384,7 @@ class Announcement(Base):
     priority = Column(Enum(PriorityEnum), default=PriorityEnum.NORMAL, nullable=False)
     branch = Column(Enum(BranchEnum), nullable=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class HRDocument(Base):
@@ -395,7 +398,7 @@ class HRDocument(Base):
     description = Column(Text, nullable=True)
     is_confidential = Column(Boolean, default=False)
     uploaded_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class Holiday(Base):
@@ -418,7 +421,7 @@ class Notification(Base):
     message = Column(Text, nullable=False)
     type = Column(String, default="INFO")  # INFO, SUCCESS, WARNING, ERROR
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     user = relationship("User", back_populates="notifications")
 
@@ -433,7 +436,7 @@ class AuditLog(Base):
     entity_type = Column(String, nullable=False)  # Employee, Attendance, Payroll, Expense, Revenue, Holiday, System
     entity_id = Column(String, nullable=True)
     details = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utc_now)
 
     user = relationship("User", back_populates="audit_logs")
 
@@ -444,4 +447,4 @@ class SystemSetting(Base):
     id = Column(String, primary_key=True, default=gen_uuid)
     key = Column(String, unique=True, nullable=False)
     value = Column(Text, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utc_now, onupdate=datetime.utcnow)

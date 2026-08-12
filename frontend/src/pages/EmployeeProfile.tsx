@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Briefcase, FileText, Clock, Edit2, Check, X,
@@ -44,7 +44,7 @@ const branchColors: Record<string, string> = {
   VIZAG: "bg-emerald-100 text-emerald-700",
 };
 
-const DOC_TYPES = ["Resume", "Aadhaar", "PAN", "Offer Letter", "Appointment Letter", "Experience Letter", "Other"];
+const DOC_TYPES = ["Resume", "Certificates"];
 
 const TIMELINE_MOCK = (emp: Employee) => {
   const today = new Date();
@@ -75,7 +75,9 @@ export default function EmployeeProfile() {
   const [newDocType, setNewDocType] = useState("Resume");
   const [newDocName, setNewDocName] = useState("");
   const [addingDoc, setAddingDoc] = useState(false);
-
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const canEdit = Boolean(user && (canManage || (emp && (emp.id === user.employee_id || emp.email === user.email)) || id === "me"));
 
   useEffect(() => {
@@ -106,16 +108,53 @@ export default function EmployeeProfile() {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      setSelectedFile(file);
+      if (!newDocName) {
+        setNewDocName(file.name);
+      }
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      if (!newDocName) {
+        setNewDocName(file.name);
+      }
+    }
+  };
+
   const handleAddDoc = async () => {
     if (!emp) return;
+    const fileName = newDocName || selectedFile?.name || `${newDocType}_Document.pdf`;
     const r = await api.post(`/api/employees/${emp.id}/documents`, {
       employee_id: emp.id,
       doc_type: newDocType,
-      file_name: newDocName || `${newDocType}_document`,
+      file_name: fileName,
     }).catch(() => null);
     if (r) {
       setDocuments((prev) => [...prev, r.data]);
       setNewDocName("");
+      setSelectedFile(null);
       setAddingDoc(false);
     }
   };
@@ -406,19 +445,105 @@ export default function EmployeeProfile() {
           </div>
 
           {addingDoc && (
-            <div className="flex flex-wrap gap-2 items-end p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-              <div className="flex-1 min-w-36">
-                <label className="text-xs text-slate-400 mb-1 block">Document Type</label>
-                <select className="input text-sm" value={newDocType} onChange={(e) => setNewDocType(e.target.value)}>
-                  {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-200">Upload Employee Document</h4>
+                  <p className="text-[11px] text-slate-400">Select document type and drag & drop your file</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-500 font-medium shrink-0">Document Type:</label>
+                  <select
+                    className="input text-xs py-1 px-2.5 rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                    value={newDocType}
+                    onChange={(e) => setNewDocType(e.target.value)}
+                  >
+                    {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
-              <div className="flex-1 min-w-48">
-                <label className="text-xs text-slate-400 mb-1 block">File Name</label>
-                <input className="input text-sm" placeholder="e.g. resume_v2.pdf" value={newDocName} onChange={(e) => setNewDocName(e.target.value)} />
+
+              {/* Drag and Drop Zone */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                  isDragging
+                    ? "border-brand-500 bg-brand-50/50 dark:bg-brand-900/20 scale-[1.01]"
+                    : selectedFile
+                    ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10"
+                    : "border-slate-300 hover:border-brand-400 dark:border-slate-700 hover:bg-slate-100/50 dark:hover:bg-slate-800/80"
+                }`}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  className="hidden"
+                />
+
+                {selectedFile ? (
+                  <div className="flex items-center justify-between max-w-sm mx-auto p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 dark:border-emerald-800 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40">
+                        <FileText size={18} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{selectedFile.name}</p>
+                        <p className="text-[10px] text-slate-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB · {newDocType}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedFile(null)}
+                      className="p-1 text-slate-400 hover:text-red-500 transition rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                      title="Remove file"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 pointer-events-none">
+                    <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/30 text-brand-600 flex items-center justify-center mx-auto">
+                      <Upload size={18} />
+                    </div>
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                      <span className="text-brand-600 font-semibold underline underline-offset-2">Click to upload</span> or drag & drop file
+                    </p>
+                    <p className="text-[11px] text-slate-400">PDF, DOCX, PNG, JPG (Max 10MB)</p>
+                  </div>
+                )}
               </div>
-              <button onClick={handleAddDoc} className="btn-primary text-xs py-2">Add</button>
-              <button onClick={() => setAddingDoc(false)} className="btn-secondary text-xs py-2">Cancel</button>
+
+              {/* File Name & Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-end justify-between">
+                <div className="flex-1">
+                  <label className="text-[11px] text-slate-400 mb-1 block">File Name</label>
+                  <input
+                    className="input text-xs py-1.5 w-full"
+                    placeholder={`e.g. ${newDocType === "Resume" ? "Praveen_Resume_2026.pdf" : "Degree_Certificate.pdf"}`}
+                    value={newDocName}
+                    onChange={(e) => setNewDocName(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    onClick={handleAddDoc}
+                    disabled={!selectedFile && !newDocName}
+                    className="btn-primary text-xs py-1.5 px-3.5 gap-1 disabled:opacity-50"
+                  >
+                    <Check size={13} /> Add
+                  </button>
+                  <button
+                    onClick={() => { setAddingDoc(false); setSelectedFile(null); setNewDocName(""); }}
+                    className="btn-secondary text-xs py-1.5 px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

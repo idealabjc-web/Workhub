@@ -51,7 +51,7 @@ dept_fin = get_or_create_dept("Finance")
 dept_ops = get_or_create_dept("Operations")
 
 # ── Super Admin ───────────────────────────────────────────────────────────────
-admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRole.SUPER_ADMIN)
+admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRoleEnum.SUPER_ADMIN)
 
 # ── HR Manager ────────────────────────────────────────────────────────────────
 hr_user = make_user("alluriroshitha999@gmail.com", "Hr123!", models.UserRoleEnum.HR)
@@ -79,7 +79,7 @@ if not existing_hr_emp:
     db.flush()
 
 # ── Employee ──────────────────────────────────────────────────────────────────
-emp_user = make_user("sheebathimmapuram@gmail.com", "Employee123!", models.UserRole.EMPLOYEE)
+emp_user = make_user("sheebathimmapuram@gmail.com", "Employee123!", models.UserRoleEnum.EMPLOYEE)
 
 existing_emp = db.query(models.Employee).filter(models.Employee.user_id == emp_user.id).first()
 if not existing_emp:
