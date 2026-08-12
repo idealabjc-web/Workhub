@@ -65,7 +65,7 @@ def run():
         # ── Demo accounts ───────────────────────────────────────────────
         demo_users = [
             ("admin@hrportal.com",    "Admin123!",    "SUPER_ADMIN", "Ava",     "Admin",    "IDEALAB", "Human Resources",  "Super Admin"),
-            ("hr@hrportal.com",       "Hr123!",       "HR",          "Priya",   "Sharma",   "IDEALAB", "Human Resources",  "HR Manager"),
+            ("alluriroshitha999@gmail.com", "Hr123!", "HR", "Roshitha", "Alluri", "IDEALAB", "Human Resources", "HR Manager"),
             ("manager@hrportal.com",  "Manager123!",  "MANAGER",     "Ravi",    "Kumar",    "VIZAG",   "Sales",            "Sales Manager"),
             ("finance@hrportal.com",  "Finance123!",  "FINANCE",     "Neha",    "Verma",    "UGC",     "Finance",          "Finance Head"),
             ("employee@hrportal.com", "Employee123!", "EMPLOYEE",    "Arjun",   "Rao",      "VIZAG",   "Sales",            "Sales Executive"),

@@ -33,12 +33,16 @@ def auto_migrate_db():
     """Ensure newly added columns exist in existing PostgreSQL / SQLite tables."""
     try:
         with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lat FLOAT;"))
             conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lng FLOAT;"))
             conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lat FLOAT;"))
             conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lng FLOAT;"))
+            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_id VARCHAR;"))
+            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_name VARCHAR;"))
+            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;"))
             conn.commit()
-            print("Auto-migration: Ensured attendance geolocation columns exist.")
+            print("Auto-migration: Ensured database columns exist.")
     except Exception as e:
         print("Auto-migration note:", e)
 

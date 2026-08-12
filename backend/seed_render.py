@@ -54,22 +54,26 @@ dept_ops = get_or_create_dept("Operations")
 admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRole.SUPER_ADMIN)
 
 # ── HR Manager ────────────────────────────────────────────────────────────────
-hr_user = make_user("hr@hrportal.com", "Hr123!", models.UserRole.HR_MANAGER)
+hr_user = make_user("alluriroshitha999@gmail.com", "Hr123!", models.UserRoleEnum.HR)
 
 existing_hr_emp = db.query(models.Employee).filter(models.Employee.user_id == hr_user.id).first()
 if not existing_hr_emp:
     hr_emp = models.Employee(
         id=str(uuid.uuid4()),
         user_id=hr_user.id,
-        first_name="HR",
-        last_name="Manager",
-        email="hr@hrportal.com",
+        first_name="Roshitha",
+        last_name="Alluri",
+        email="alluriroshitha999@gmail.com",
+        phone="9989642229",
+        blood_group="A+",
+        gender="Female",
+        date_of_birth=date(2000, 9, 1),
         department_id=dept_hr.id,
-        position="HR Manager",
-        date_of_joining=date(2023, 1, 1),
-        basic_salary=60000,
-        status="ACTIVE",
-        branch="IDEALAB",
+        designation="HR Manager",
+        date_of_joining=date(2024, 9, 2),
+        basic_salary=75000,
+        status=models.EmployeeStatusEnum.ACTIVE,
+        branch=models.BranchEnum.IDEALAB,
     )
     db.add(hr_emp)
     db.flush()

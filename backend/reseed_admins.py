@@ -35,7 +35,7 @@ cur.execute("""
     INSERT INTO users (id, email, hashed_password, role, profile_complete, is_active)
     VALUES (%s, %s, %s, 'HR', TRUE, TRUE)
     ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password, profile_complete = TRUE
-""", (hr_id, "hr@hrportal.com", hr_hash))
+""", (hr_id, "alluriroshitha999@gmail.com", hr_hash))
 
 print("Admin and HR users re-created")
 
