@@ -326,7 +326,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <MapPin size={14} className="text-brand-500" /> Assigned Premises: <b>{office?.name || "Idealab Main Campus"}</b>
+            <MapPin size={14} className="text-brand-500" /> Assigned Premises: <b>{office?.name || "Lotus HYD Campus"}</b>
           </span>
           <div className="flex items-center gap-2">
             <button

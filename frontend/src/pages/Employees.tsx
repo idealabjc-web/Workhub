@@ -28,6 +28,7 @@ interface Department {
 }
 
 const branchColors: Record<string, string> = {
+  HYD: "bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300",
   IDEALAB: "bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300",
   UGC: "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
   VIZAG: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
@@ -41,7 +42,7 @@ const statusColors: Record<string, string> = {
 
 const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", password: "",
-  phone: "", designation: "", branch: "IDEALAB", role: "EMPLOYEE",
+  phone: "", designation: "", branch: "HYD", role: "EMPLOYEE",
   department_id: "", employment_type: "Full-Time", basic_salary: "",
   date_of_joining: new Date().toISOString().slice(0, 10), gender: "Male",
 };
@@ -243,7 +244,7 @@ export default function Employees() {
         </div>
         <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
-          <option value="IDEALAB">Idealab</option>
+          <option value="HYD">HYD</option>
           <option value="VIZAG">Vizag</option>
         </select>
         <select className="input w-40 text-sm" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
@@ -321,7 +322,9 @@ export default function Employees() {
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
+            {[...employees]
+              .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
+              .map((emp) => (
               <tr
                 key={emp.id}
                 className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 cursor-pointer"
