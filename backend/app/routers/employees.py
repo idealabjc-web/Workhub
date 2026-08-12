@@ -13,8 +13,21 @@ router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 
 def next_employee_number(db: Session) -> str:
-    count = db.query(models.Employee).count()
-    return f"EMP{1000 + count + 1}"
+    employees = db.query(models.Employee.employee_number).all()
+    max_num = 0
+    for (emp_num,) in employees:
+        if emp_num:
+            digits = "".join(filter(str.isdigit, emp_num))
+            if digits:
+                max_num = max(max_num, int(digits))
+    
+    next_val = max_num + 1 if max_num > 0 else 1
+    while True:
+        candidate = f"EMP{str(next_val).zfill(4)}"
+        exists = db.query(models.Employee).filter(models.Employee.employee_number == candidate).first()
+        if not exists:
+            return candidate
+        next_val += 1
 
 
 @router.get("", response_model=List[schemas.EmployeeOut])

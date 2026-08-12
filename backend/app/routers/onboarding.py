@@ -74,8 +74,8 @@ def complete_onboarding(
     emp_type = emp_type_map.get(payload.employment_type, models.EmploymentTypeEnum.FULL_TIME)
 
     # Generate employee number
-    count = db.query(models.Employee).count()
-    emp_number = f"EMP{str(count + 1).zfill(4)}"
+    from app.routers.employees import next_employee_number
+    emp_number = next_employee_number(db)
 
     # Create or update employee record
     emp = db.query(models.Employee).filter(models.Employee.user_id == current_user.id).first()
@@ -117,8 +117,15 @@ def complete_onboarding(
     # Mark profile as complete
     current_user.profile_complete = True
 
-    db.commit()
-    db.refresh(emp)
+    try:
+        db.commit()
+        db.refresh(emp)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to complete onboarding. Please verify your information and try again."
+        )
 
     # Sync gender-based annual leave quota (Female: 12 leaves/yr, Male: 6 leaves/yr)
     from app.routers.leaves import sync_employee_leave_balances

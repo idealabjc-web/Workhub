@@ -66,9 +66,10 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
     fname = parts[0].capitalize()
     lname = parts[1].capitalize() if len(parts) > 1 else "Staff"
 
+    from app.routers.employees import next_employee_number
     emp = models.Employee(
         user_id=user.id,
-        employee_number=f"EMP{db.query(models.Employee).count() + 1001}",
+        employee_number=next_employee_number(db),
         first_name=fname,
         last_name=lname,
         email=user.email,
