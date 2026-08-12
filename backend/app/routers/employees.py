@@ -55,7 +55,7 @@ def list_employees(
         query = query.filter(models.Employee.department_id == department_id)
     if status:
         query = query.filter(models.Employee.status == status)
-    return query.order_by(models.Employee.first_name.asc(), models.Employee.last_name.asc()).all()
+    return query.order_by(models.Employee.created_at.desc()).all()
 
 
 @router.post("", response_model=schemas.EmployeeOut)

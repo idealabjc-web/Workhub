@@ -46,8 +46,7 @@ class EmployeeStatusEnum(str, enum.Enum):
 
 
 class BranchEnum(str, enum.Enum):
-    HYD = "HYD"
-    IDEALAB = "HYD"
+    IDEALAB = "IDEALAB"
     UGC = "UGC"
     VIZAG = "VIZAG"
 

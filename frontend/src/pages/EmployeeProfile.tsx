@@ -361,7 +361,7 @@ export default function EmployeeProfile() {
             <EditableField label="Branch" value={emp.branch} editing={editing}
               editEl={
                 <select className="input text-sm" value={editForm.branch || ""} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}>
-                  <option value="HYD">HYD</option>
+                  <option value="IDEALAB">Idealab</option>
                   <option value="UGC">UGC</option>
                   <option value="VIZAG">Vizag</option>
                 </select>

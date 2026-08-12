@@ -271,7 +271,7 @@ export default function Onboarding() {
                       onChange={(e) => handleChange("branch", e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer"
                     >
-                      <option value="HYD">HYD</option>
+                      <option value="IDEALAB">IDEALAB</option>
                       <option value="VIZAG">VIZAG</option>
                     </select>
                   </div>
