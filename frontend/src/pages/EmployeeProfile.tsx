@@ -145,7 +145,7 @@ export default function EmployeeProfile() {
         </button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{emp.first_name} {emp.last_name}</h1>
-          <p className="text-sm text-slate-400">{emp.employee_number} · {emp.designation || "—"}</p>
+          <p className="text-sm text-slate-400">{emp.designation || "Staff Member"}</p>
         </div>
         {canEdit && !editing && (
           <button onClick={() => setEditing(true)} className="btn-secondary gap-2">
@@ -345,8 +345,6 @@ export default function EmployeeProfile() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="card p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Employment Details</h3>
-            <EditableField label="Employee Number" value={emp.employee_number} editing={editing}
-              editEl={<input className="input text-sm" value={editForm.employee_number || ""} onChange={(e) => setEditForm({ ...editForm, employee_number: e.target.value })} />} />
             <EditableField label="Date of Joining" value={emp.date_of_joining ? new Date(emp.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"} editing={editing}
               editEl={<input type="date" className="input text-sm" value={editForm.date_of_joining?.toString().slice(0, 10) || ""} onChange={(e) => setEditForm({ ...editForm, date_of_joining: e.target.value })} />} />
             <EditableField label="Team / Brand" value={(emp as any).team_name || deptName || "—"} editing={editing}
@@ -392,7 +390,6 @@ export default function EmployeeProfile() {
               <EditableField label="Basic Salary (₹)" value={emp.basic_salary ? `₹${emp.basic_salary.toLocaleString()}` : "—"} editing={editing}
                 editEl={<input type="number" className="input text-sm" value={editForm.basic_salary || ""} onChange={(e) => setEditForm({ ...editForm, basic_salary: Number(e.target.value) })} />} />
             )}
-            <Field label="Employee ID" value={emp.id} mono />
           </div>
         </div>
       )}

@@ -168,7 +168,7 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 truncate mt-0.5">
-                  {empDetail?.employee_number || "EMP-ID"} · {empDetail?.designation || "Staff Member"}
+                  {empDetail?.designation || "Staff Member"}
                 </p>
               </div>
             </div>

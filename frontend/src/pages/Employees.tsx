@@ -236,7 +236,7 @@ export default function Employees() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9 text-sm"
-            placeholder="Search name, email, ID, designation..."
+            placeholder="Search name, email, designation..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -334,7 +334,7 @@ export default function Employees() {
                     </div>
                     <div>
                       <p className="font-medium text-slate-900 dark:text-white">{emp.first_name} {emp.last_name}</p>
-                      <p className="text-xs text-slate-400">{emp.employee_number} · {emp.designation || emp.email}</p>
+                      <p className="text-xs text-slate-400">{emp.designation || emp.email}</p>
                     </div>
                   </div>
                 </td>
