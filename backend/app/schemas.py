@@ -226,6 +226,9 @@ class AttendanceOut(BaseModel):
     is_late: bool
     is_early_logout: bool
     notes: Optional[str] = None
+    employee_name: Optional[str] = None
+    employee_number: Optional[str] = None
+    branch: Optional[str] = None
 
     @field_serializer("check_in", "check_out", mode="plain")
     def serialize_utc_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:

@@ -265,7 +265,13 @@ def list_attendance(
         if department_id:
             query = query.filter(models.Employee.department_id == department_id)
 
-    return query.order_by(models.Attendance.date.desc()).all()
+    records = query.order_by(models.Attendance.date.desc()).all()
+    for r in records:
+        if r.employee:
+            r.employee_name = f"{r.employee.first_name} {r.employee.last_name}".strip()
+            r.employee_number = r.employee.employee_number
+            r.branch = r.employee.branch.value if hasattr(r.employee.branch, "value") else str(r.employee.branch)
+    return records
 
 
 @router.patch("/cell", response_model=schemas.AttendanceOut)

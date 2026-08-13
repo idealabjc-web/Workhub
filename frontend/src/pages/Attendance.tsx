@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, Download, Upload, Plus, Check, X,
-  Lock, Unlock, RefreshCw, AlertCircle, FileSpreadsheet, Filter, Info
+  Lock, Unlock, FileSpreadsheet, Search
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -9,8 +9,17 @@ import * as XLSX from "xlsx";
 import CheckInOutCard from "../components/CheckInOutCard";
 
 interface AttendanceRow {
-  id: string; employee_id: string; date: string; check_in?: string;
-  check_out?: string; status: string; is_late: boolean; notes?: string;
+  id: string;
+  employee_id: string;
+  date: string;
+  check_in?: string;
+  check_out?: string;
+  status: string;
+  is_late: boolean;
+  notes?: string;
+  employee_name?: string;
+  employee_number?: string;
+  branch?: string;
 }
 
 interface MonthlyData {
@@ -29,35 +38,67 @@ interface Correction {
   reason: string; status: string; created_at: string;
 }
 
-const STATUS_CODES: Record<string, { abbr: string; name: string; cls: string }> = {
-  PRESENT:  { abbr: "P",   name: "Present",        cls: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300" },
-  ABSENT:   { abbr: "A",   name: "Absent",         cls: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/60 dark:text-red-300" },
-  LEAVE:    { abbr: "L",   name: "Leave",          cls: "bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-950/60 dark:text-violet-300" },
-  HALF_DAY: { abbr: "HD",  name: "Half Day",       cls: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300" },
-  WFH:      { abbr: "WFH", name: "Work From Home", cls: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300" },
-  HOLIDAY:  { abbr: "H",   name: "Holiday",        cls: "bg-pink-100 text-pink-800 border-pink-300 dark:bg-pink-950/60 dark:text-pink-300" },
-  WEEK_OFF: { abbr: "WO",  name: "Week Off",       cls: "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-400" },
+const STATUS_CODES: Record<string, { abbr: string; name: string; label: string; cls: string }> = {
+  PRESENT:  { abbr: "P",   name: "Present",        label: "P - Present",          cls: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300" },
+  ABSENT:   { abbr: "A",   name: "Absent",         label: "A - Absent",           cls: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/60 dark:text-red-300" },
+  LEAVE:    { abbr: "L",   name: "Leave",          label: "L - Leave",            cls: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300" },
+  HALF_DAY: { abbr: "HD",  name: "Half Day",       label: "HD - Half Day",        cls: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300" },
+  WFH:      { abbr: "WFH", name: "Work From Home", label: "WFH - Work From Home", cls: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300" },
+  HOLIDAY:  { abbr: "H",   name: "Holiday",        label: "H - Holiday",          cls: "bg-pink-100 text-pink-800 border-pink-300 dark:bg-pink-950/60 dark:text-pink-300" },
+  WEEK_OFF: { abbr: "WO",  name: "Week Off",       label: "WO - Week Off",        cls: "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-400" },
 };
 
 const ABBR_TO_STATUS: Record<string, string> = {
   P: "PRESENT", A: "ABSENT", L: "LEAVE", HD: "HALF_DAY", WFH: "WFH", H: "HOLIDAY", WO: "WEEK_OFF",
 };
 
+function formatDateMDY(dateStr: string): string {
+  if (!dateStr) return "—";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return `${month}/${day}/${year}`;
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? dateStr : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+}
+
+function formatDayName(dateStr: string): string {
+  if (!dateStr) return "—";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      const d = new Date(year, month - 1, day);
+      return d.toLocaleDateString("en-US", { weekday: "short" });
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
 function formatLocalTime(dateStr?: string | null): string {
   if (!dateStr) return "—";
   const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
   const normalized = hasTimezone ? dateStr : `${dateStr}Z`;
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 export default function Attendance() {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
-  const isEmployeeOnly = user?.role === "EMPLOYEE";
 
-  const [activeTab, setActiveTab] = useState<"personal" | "pagara" | "corrections">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "all_employees" | "pagara" | "corrections">("personal");
   const [rows, setRows] = useState<AttendanceRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [monthlyData, setMonthlyData] = useState<MonthlyData | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [branchFilter, setBranchFilter] = useState("");
@@ -81,6 +122,14 @@ export default function Attendance() {
       .catch(() => {});
   };
 
+  const loadAllAttendance = () => {
+    setLoading(true);
+    api.get("/api/attendance", { params: { month, branch: branchFilter || undefined } })
+      .then((r) => setRows(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   const loadMonthlyGrid = async () => {
     setLoading(true);
     try {
@@ -98,9 +147,19 @@ export default function Attendance() {
 
   useEffect(() => {
     if (activeTab === "personal") loadPersonal();
+    else if (activeTab === "all_employees") loadAllAttendance();
     else if (activeTab === "pagara") loadMonthlyGrid();
     else if (activeTab === "corrections") loadCorrections();
   }, [activeTab, month, branchFilter]);
+
+  const filteredRows = rows.filter((r) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const nameMatch = r.employee_name?.toLowerCase().includes(q);
+    const numMatch = r.employee_number?.toLowerCase().includes(q);
+    const dateMatch = r.date?.includes(q);
+    return Boolean(nameMatch || numMatch || dateMatch);
+  });
 
   // Pagara Cell Click handler: saves updated status directly
   const handleCellStatusSelect = async (newStatus: string) => {
@@ -116,7 +175,6 @@ export default function Attendance() {
         status: newStatus,
       });
 
-      // Optimistically update local monthly grid data
       setMonthlyData((prev) => {
         if (!prev) return prev;
         return {
@@ -184,6 +242,7 @@ export default function Attendance() {
         await api.post("/api/attendance/import", { records });
         setShowImportModal(false);
         if (activeTab === "pagara") loadMonthlyGrid();
+        else if (activeTab === "all_employees") loadAllAttendance();
         else loadPersonal();
         alert(`Successfully imported ${records.length} attendance records!`);
       } catch (err: any) {
@@ -227,7 +286,7 @@ export default function Attendance() {
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <CalendarCheck size={22} className="text-brand-500" /> Attendance Management
           </h1>
-          <p className="text-sm text-slate-400">Pagara book entry, personal logs, and correction requests</p>
+          <p className="text-sm text-slate-400">Personal logs, team check-in & check-out records, and monthly grid</p>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -242,14 +301,24 @@ export default function Attendance() {
               My Attendance
             </button>
             {isHR && (
-              <button
-                onClick={() => setActiveTab("pagara")}
-                className={`px-3.5 py-1.5 text-xs font-semibold transition ${
-                  activeTab === "pagara" ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
-                }`}
-              >
-                Pagara Grid (HR)
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveTab("all_employees")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold transition ${
+                    activeTab === "all_employees" ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  All Employees Logs
+                </button>
+                <button
+                  onClick={() => setActiveTab("pagara")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold transition ${
+                    activeTab === "pagara" ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  Pagara Grid (HR)
+                </button>
+              </>
             )}
             <button
               onClick={() => setActiveTab("corrections")}
@@ -283,7 +352,7 @@ export default function Attendance() {
       </div>
 
       {/* Month & Filter Controls */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <button onClick={() => setMonth(m => { const d = new Date(m + "-01"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })} className="btn-secondary !px-2 !py-1.5">
             <ChevronLeft size={15} />
@@ -294,8 +363,29 @@ export default function Attendance() {
           </button>
         </div>
 
+        {activeTab === "all_employees" && isHR && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search employee or ID..."
+                className="input pl-8 text-xs py-1.5 w-48"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <select className="input text-xs py-1.5 w-36" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+              <option value="">All Branches</option>
+              <option value="IDEALAB">Idealab</option>
+              <option value="UGC">UGC</option>
+              <option value="VIZAG">Vizag</option>
+            </select>
+          </div>
+        )}
+
         {activeTab === "pagara" && isHR && (
-          <>
+          <div className="flex items-center gap-2">
             <select className="input w-36 text-xs py-1.5" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
               <option value="">All Branches</option>
               <option value="IDEALAB">Idealab</option>
@@ -314,7 +404,7 @@ export default function Attendance() {
               {monthlyData?.is_finalized ? <Lock size={13} /> : <Unlock size={13} />}
               {monthlyData?.is_finalized ? "Finalized (Locked)" : "Draft (Editable)"}
             </button>
-          </>
+          </div>
         )}
       </div>
 
@@ -333,44 +423,98 @@ export default function Attendance() {
         <div className="space-y-4">
           <CheckInOutCard onStatusChange={loadPersonal} />
           <div className="card overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 uppercase text-[10px] text-slate-400 dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Day</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Check In</th>
-                <th className="px-4 py-3">Check Out</th>
-                <th className="px-4 py-3">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
-                const d = new Date(r.date);
-                return (
-                  <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                    <td className="px-4 py-3 font-semibold">{d.toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-slate-400">{d.toLocaleDateString("en", { weekday: "short" })}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded border font-bold text-[10px] ${cfg.cls}`}>{cfg.abbr} - {cfg.name}</span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
-                    <td className="px-4 py-3 text-slate-400">{r.notes || "—"}</td>
-                  </tr>
-                );
-              })}
-              {rows.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No attendance records for {month}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 uppercase text-[10px] font-bold text-slate-400 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <tr>
+                  <th className="px-4 py-3">DATE</th>
+                  <th className="px-4 py-3">DAY</th>
+                  <th className="px-4 py-3">STATUS</th>
+                  <th className="px-4 py-3">CHECK IN</th>
+                  <th className="px-4 py-3">CHECK OUT</th>
+                  <th className="px-4 py-3">NOTES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
+                  return (
+                    <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                      <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.date)}</td>
+                      <td className="px-4 py-3.5 text-slate-400 font-medium">{formatDayName(r.date)}</td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
+                      <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
+                      <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
+                    </tr>
+                  );
+                })}
+                {rows.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No attendance records for {month}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* TAB 2: PAGARA MANUAL GRID EDITOR (HR ONLY) */}
+      {/* TAB 2: ALL EMPLOYEES ATTENDANCE LOG (HR VIEW) */}
+      {activeTab === "all_employees" && isHR && (
+        <div className="space-y-4">
+          <div className="card overflow-x-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 uppercase text-[10px] font-bold text-slate-400 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                  <tr>
+                    <th className="px-4 py-3">EMPLOYEE</th>
+                    <th className="px-4 py-3">DATE</th>
+                    <th className="px-4 py-3">DAY</th>
+                    <th className="px-4 py-3">STATUS</th>
+                    <th className="px-4 py-3">CHECK IN</th>
+                    <th className="px-4 py-3">CHECK OUT</th>
+                    <th className="px-4 py-3">NOTES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((r) => {
+                    const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
+                    return (
+                      <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">{r.employee_name || "Staff Member"}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">{r.employee_number || ""} {r.branch ? `· ${r.branch}` : ""}</p>
+                        </td>
+                        <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.date)}</td>
+                        <td className="px-4 py-3.5 text-slate-400 font-medium">{formatDayName(r.date)}</td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
+                        <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
+                        <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                  {filteredRows.length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No attendance records found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: PAGARA MANUAL GRID EDITOR (HR ONLY) */}
       {activeTab === "pagara" && isHR && (
         <div className="card overflow-x-auto relative">
           {loading ? (
@@ -400,7 +544,6 @@ export default function Attendance() {
                       <p className="text-[10px] text-slate-400">{emp.employee_number}</p>
                     </td>
 
-                    {/* Day Cells: Click to open direct status picker */}
                     {Array.from({ length: monthlyData.days_in_month }, (_, i) => {
                       const dayNum = i + 1;
                       const statusKey = emp.days[dayNum] || "";
@@ -465,7 +608,7 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* TAB 3: CORRECTIONS */}
+      {/* TAB 4: CORRECTIONS */}
       {activeTab === "corrections" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -479,7 +622,7 @@ export default function Attendance() {
 
           <div className="card overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 uppercase text-[10px] text-slate-400 dark:border-slate-800">
+              <thead className="border-b border-slate-200 uppercase text-[10px] font-bold text-slate-400 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <tr>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Requested Status</th>
@@ -491,7 +634,7 @@ export default function Attendance() {
               <tbody>
                 {corrections.map((c) => (
                   <tr key={c.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                    <td className="px-4 py-3 font-semibold">{new Date(c.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 font-semibold">{formatDateMDY(c.date)}</td>
                     <td className="px-4 py-3">
                       <span className="badge bg-brand-50 text-brand-700">{STATUS_CODES[c.requested_status]?.name || c.requested_status}</span>
                     </td>
