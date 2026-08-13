@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
@@ -20,7 +20,7 @@ def list_expenses(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    query = db.query(models.Expense)
+    query = db.query(models.Expense).options(joinedload(models.Expense.employee))
     if current_user.role.value == "EMPLOYEE" and current_user.employee:
         query = query.filter(models.Expense.employee_id == current_user.employee.id)
     elif employee_id:
@@ -55,6 +55,8 @@ def create_expense(
         amount=payload.amount,
         date=payload.date,
         description=payload.description,
+        vendor_name=payload.vendor_name,
+        receipt_url=payload.receipt_url,
         payment_method=payload.payment_method,
     )
     db.add(expense)

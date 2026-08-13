@@ -354,13 +354,27 @@ class Expense(Base):
     amount = Column(Float, nullable=False)
     date = Column(Date, nullable=False)
     description = Column(Text, nullable=True)
-    receipt_url = Column(String, nullable=True)
+    vendor_name = Column(String, nullable=True)
+    receipt_url = Column(Text, nullable=True)
     payment_method = Column(String, default="Cash")  # Cash, Card, Bank Transfer, UPI
     status = Column(Enum(ExpenseStatusEnum), default=ExpenseStatusEnum.PENDING, nullable=False)
     approved_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     employee = relationship("Employee", back_populates="expenses")
+
+    @property
+    def employee_name(self) -> str:
+        if self.employee:
+            full = f"{self.employee.first_name or ''} {self.employee.last_name or ''}".strip()
+            return full if full else "Staff Member"
+        return "Staff Member"
+
+    @property
+    def employee_number(self) -> str:
+        if self.employee:
+            return self.employee.employee_number or ""
+        return ""
 
 
 class Moment(Base):

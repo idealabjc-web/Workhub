@@ -408,6 +408,8 @@ class ExpenseCreate(BaseModel):
     amount: float
     date: datetime.date
     description: Optional[str] = None
+    vendor_name: Optional[str] = None
+    receipt_url: Optional[str] = None
     payment_method: str = "Cash"
 
 
@@ -424,11 +426,14 @@ class ExpenseOut(BaseModel):
     amount: float
     date: datetime.date
     description: Optional[str] = None
+    vendor_name: Optional[str] = None
     receipt_url: Optional[str] = None
     payment_method: str
     status: str
     approved_by: Optional[str] = None
     created_at: datetime.datetime
+    employee_name: Optional[str] = None
+    employee_number: Optional[str] = None
 
     class Config:
         from_attributes = True
