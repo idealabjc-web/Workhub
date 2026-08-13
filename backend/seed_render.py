@@ -24,13 +24,18 @@ db = SessionLocal()
 def make_user(email, password, role):
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
-        print(f"  User {email} already exists, skipping.")
+        existing.hashed_password = hash_password(password)
+        existing.role = role
+        existing.is_active = True
+        db.flush()
+        print(f"  Updated existing user {email} password & role.")
         return existing
     u = models.User(
         id=str(uuid.uuid4()),
         email=email,
         hashed_password=hash_password(password),
         role=role,
+        is_active=True,
     )
     db.add(u)
     db.flush()
@@ -51,8 +56,9 @@ dept_hr   = get_or_create_dept("HR")
 dept_fin  = get_or_create_dept("Finance")
 dept_ops  = get_or_create_dept("Operations")
 
-# ── Super Admin ───────────────────────────────────────────────────────────────
+# ── Super Admins ───────────────────────────────────────────────────────────────
 admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRoleEnum.SUPER_ADMIN)
+superadmin_user = make_user("superadmin@idealab.com", "SuperAdmin123!", models.UserRoleEnum.SUPER_ADMIN)
 
 # ── HR Manager ────────────────────────────────────────────────────────────────
 hr_user = make_user("alluriroshitha999@gmail.com", "Hr123!", models.UserRoleEnum.HR)
