@@ -189,7 +189,7 @@ def run():
         for emp in all_employees:
             for day_offset in range(60):
                 d = date.today() - timedelta(days=day_offset)
-                if d.weekday() >= 5:
+                if d.weekday() == 6:
                     status = models.AttendanceStatusEnum.WEEK_OFF
                     db.add(models.Attendance(employee_id=emp.id, date=d, status=status))
                     continue

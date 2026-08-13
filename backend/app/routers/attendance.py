@@ -225,6 +225,45 @@ def toggle_remote_checkin(
     return {"allow_remote_checkin": setting.value == "true"}
 
 
+def ensure_sunday_week_offs(db: Session, year: int, month: int, employee_id: Optional[str] = None):
+    """Ensure all Sundays in the specified month have a WEEK_OFF attendance record if not checked in."""
+    import calendar
+    try:
+        days_in_month = calendar.monthrange(year, month)[1]
+    except Exception:
+        return
+
+    emp_query = db.query(models.Employee).filter(models.Employee.status == "Active")
+    if employee_id:
+        emp_query = emp_query.filter(models.Employee.id == employee_id)
+    employees = emp_query.all()
+
+    sundays = [date(year, month, day) for day in range(1, days_in_month + 1) if date(year, month, day).weekday() == 6]
+    if not sundays or not employees:
+        return
+
+    added = False
+    for emp in employees:
+        for sunday_date in sundays:
+            existing = db.query(models.Attendance).filter(
+                models.Attendance.employee_id == emp.id,
+                models.Attendance.date == sunday_date,
+            ).first()
+            if not existing:
+                db.add(models.Attendance(
+                    employee_id=emp.id,
+                    date=sunday_date,
+                    status=models.AttendanceStatusEnum.WEEK_OFF,
+                ))
+                added = True
+            elif existing.check_in is None and existing.status != models.AttendanceStatusEnum.WEEK_OFF:
+                existing.status = models.AttendanceStatusEnum.WEEK_OFF
+                added = True
+
+    if added:
+        db.commit()
+
+
 @router.get("", response_model=List[schemas.AttendanceOut])
 def list_attendance(
     employee_id: Optional[str] = None,
@@ -236,6 +275,14 @@ def list_attendance(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    if month:
+        try:
+            year, m = map(int, month.split("-"))
+            target_emp_id = current_user.employee.id if current_user.role.value == "EMPLOYEE" and current_user.employee else employee_id
+            ensure_sunday_week_offs(db, year, m, target_emp_id)
+        except Exception:
+            pass
+
     query = db.query(models.Attendance)
 
     # Employees can ONLY see their own records
@@ -419,6 +466,7 @@ def monthly_summary(
 ):
     """Monthly spreadsheet grid data for HR Pagara manual entry"""
     year, m = map(int, month.split("-"))
+    ensure_sunday_week_offs(db, year, m)
 
     emp_query = db.query(models.Employee).filter(models.Employee.status == "Active")
     if branch:
