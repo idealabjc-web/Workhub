@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
@@ -18,7 +18,7 @@ def list_leaves(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    query = db.query(models.Leave)
+    query = db.query(models.Leave).options(joinedload(models.Leave.employee))
     if current_user.role.value == "EMPLOYEE":
         if current_user.employee:
             query = query.filter(models.Leave.employee_id == current_user.employee.id)
@@ -26,13 +26,7 @@ def list_leaves(
         query = query.filter(models.Leave.employee_id == employee_id)
     if status:
         query = query.filter(models.Leave.status == status)
-    records = query.order_by(models.Leave.applied_at.desc()).all()
-    for r in records:
-        if r.employee:
-            r.employee_name = f"{r.employee.first_name} {r.employee.last_name}".strip()
-            r.employee_number = r.employee.employee_number
-            r.branch = r.employee.branch.value if hasattr(r.employee.branch, "value") else str(r.employee.branch)
-    return records
+    return query.order_by(models.Leave.applied_at.desc()).all()
 
 
 @router.post("", response_model=schemas.LeaveOut)

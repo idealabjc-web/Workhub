@@ -257,6 +257,25 @@ class Leave(Base):
 
     employee = relationship("Employee", back_populates="leave_requests")
 
+    @property
+    def employee_name(self) -> str:
+        if self.employee:
+            full = f"{self.employee.first_name or ''} {self.employee.last_name or ''}".strip()
+            return full if full else "Staff Member"
+        return "Staff Member"
+
+    @property
+    def employee_number(self) -> str:
+        if self.employee:
+            return self.employee.employee_number or ""
+        return ""
+
+    @property
+    def branch(self) -> str:
+        if self.employee and self.employee.branch:
+            return self.employee.branch.value if hasattr(self.employee.branch, "value") else str(self.employee.branch)
+        return ""
+
 
 class LeaveBalance(Base):
     __tablename__ = "leave_balances"
