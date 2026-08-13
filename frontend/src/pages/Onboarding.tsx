@@ -286,6 +286,7 @@ export default function Onboarding() {
                       onChange={(e) => handleChange("team_name", e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer font-medium"
                     >
+                      <option value="TECH TEAM">TECH TEAM</option>
                       <option value="IDIAS">IDIAS</option>
                       <option value="WYN">WYN</option>
                       <option value="NEXT">NEXT</option>
@@ -295,6 +296,7 @@ export default function Onboarding() {
                       <option value="SIGNATURE">SIGNATURE</option>
                       <option value="VIZAG">VIZAG</option>
                       <option value="ICON">ICON</option>
+                      <option value="TECH">TECH</option>
                     </select>
                   </div>
                 </div>

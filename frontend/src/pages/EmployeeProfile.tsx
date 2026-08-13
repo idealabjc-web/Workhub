@@ -390,7 +390,7 @@ export default function EmployeeProfile() {
               editEl={
                 <select className="input text-sm" value={(editForm as any).team_name || ""} onChange={(e) => setEditForm({ ...editForm, team_name: e.target.value } as any)}>
                   <option value="">Select Team / Brand</option>
-                  {["IDIAS", "VOICE", "WYN", "WYNX", "NEXT", "PROSUMMITS", "ICON", "VIZAG", "SIGNATURE", "IDEALAB"].map((t) => (
+                  {["TECH TEAM", "IDIAS", "VOICE", "WYN", "WYNX", "NEXT", "PROSUMMITS", "ICON", "VIZAG", "SIGNATURE", "IDEALAB", "TECH"].map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>

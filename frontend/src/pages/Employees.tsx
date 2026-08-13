@@ -275,7 +275,7 @@ export default function Employees() {
             </select>
             <select className="input text-sm" value={(form as any).team_name || ""} onChange={(e) => setForm({ ...form, team_name: e.target.value } as any)}>
               <option value="">Select Team</option>
-              {["IDIAS", "WYN", "NEXT", "WYNX", "PROSUMMITS", "VOICE", "SIGNATURE", "VIZAG", "ICON"].map((t) => (
+              {["TECH TEAM", "IDIAS", "WYN", "NEXT", "WYNX", "PROSUMMITS", "VOICE", "SIGNATURE", "VIZAG", "ICON", "TECH"].map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
