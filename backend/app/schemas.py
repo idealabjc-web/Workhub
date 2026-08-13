@@ -290,6 +290,9 @@ class LeaveOut(BaseModel):
     approved_by: Optional[str] = None
     comments: Optional[str] = None
     applied_at: datetime.datetime
+    employee_name: Optional[str] = None
+    employee_number: Optional[str] = None
+    branch: Optional[str] = None
 
     class Config:
         from_attributes = True

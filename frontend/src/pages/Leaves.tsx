@@ -3,12 +3,28 @@ import { Plus, Check, X, Trash2, Calendar } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
-interface LeaveRow { id: string; employee_id: string; leave_type: string; start_date: string; end_date: string; status: string; reason?: string; comments?: string; applied_at?: string; }
+interface LeaveRow {
+  id: string;
+  employee_id: string;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  reason?: string;
+  comments?: string;
+  applied_at?: string;
+  employee_name?: string;
+  employee_number?: string;
+  branch?: string;
+}
+
 interface LeaveBalance { id: string; leave_type: string; total: number; used: number; }
 
 const STATUS_COLOR: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700", MANAGER_APPROVED: "bg-blue-100 text-blue-700",
-  APPROVED: "bg-emerald-100 text-emerald-700", REJECTED: "bg-red-100 text-red-700",
+  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+  MANAGER_APPROVED: "bg-blue-100 text-blue-700 border-blue-200",
+  APPROVED: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-red-100 text-red-700 border-red-200",
 };
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
@@ -17,6 +33,21 @@ const LEAVE_TYPE_LABEL: Record<string, string> = {
 };
 
 const EMPTY_FORM = { leave_type: "CASUAL", start_date: "", end_date: "", reason: "" };
+
+function formatDateMDY(dateStr?: string): string {
+  if (!dateStr) return "—";
+  const parts = dateStr.split("T")[0].split("-");
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return `${month}/${day}/${year}`;
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? dateStr : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+}
 
 export default function Leaves() {
   const [rows, setRows] = useState<LeaveRow[]>([]);
@@ -34,6 +65,7 @@ export default function Leaves() {
     api.get("/api/leaves", { params }).then((r) => setRows(r.data)).catch(() => {});
     api.get("/api/leaves/balances").then((r) => setBalances(r.data)).catch(() => {});
   };
+
   useEffect(() => { load(); }, [statusFilter]);
 
   const handleApply = async (e: React.FormEvent) => {
@@ -160,12 +192,13 @@ export default function Leaves() {
       {/* Table */}
       <div className="table-wrapper">
         <table className="w-full min-w-[700px] text-left text-sm">
-          <thead className="border-b border-slate-200 text-xs uppercase text-slate-400 dark:border-slate-800">
+          <thead className="border-b border-slate-200 text-xs uppercase font-bold text-slate-400 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             <tr>
+              <th className="px-4 py-3">Employee</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">From</th>
               <th className="px-4 py-3">To</th>
-              <th className="px-4 py-3">Days</th>
+              <th className="px-4 py-3 text-center">Days</th>
               <th className="px-4 py-3">Reason</th>
               <th className="px-4 py-3">Applied</th>
               <th className="px-4 py-3">Status</th>
@@ -174,25 +207,29 @@ export default function Leaves() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                <td className="px-4 py-3 font-medium">{LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</td>
-                <td className="px-4 py-3">{new Date(r.start_date).toLocaleDateString()}</td>
-                <td className="px-4 py-3">{new Date(r.end_date).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-center font-semibold">{daysBetween(r.start_date, r.end_date)}</td>
-                <td className="px-4 py-3 max-w-40 truncate text-slate-500">{r.reason || "—"}</td>
-                <td className="px-4 py-3 text-slate-400 text-xs">{r.applied_at ? new Date(r.applied_at).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3">
+              <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                <td className="px-4 py-3.5">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">{r.employee_name || "Staff Member"}</p>
+                  <p className="text-[10px] text-slate-400 font-mono">{r.employee_number || ""} {r.branch ? `· ${r.branch}` : ""}</p>
+                </td>
+                <td className="px-4 py-3.5 font-medium">{LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</td>
+                <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.start_date)}</td>
+                <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.end_date)}</td>
+                <td className="px-4 py-3.5 text-center font-semibold">{daysBetween(r.start_date, r.end_date)}</td>
+                <td className="px-4 py-3.5 max-w-44 truncate text-slate-500">{r.reason || "—"}</td>
+                <td className="px-4 py-3.5 text-slate-400 text-xs">{formatDateMDY(r.applied_at)}</td>
+                <td className="px-4 py-3.5">
                   <span className={`badge ${STATUS_COLOR[r.status] || ""}`}>{r.status.replace("_", " ")}</span>
                 </td>
                 {canApprove && (
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1">
                       {r.status === "PENDING" && (
                         <>
-                          <button onClick={() => updateStatus(r.id, "APPROVED")} className="flex items-center gap-1 rounded px-2 py-1 bg-emerald-100 text-emerald-700 text-xs hover:bg-emerald-200 transition">
+                          <button onClick={() => updateStatus(r.id, "APPROVED")} className="flex items-center gap-1 rounded px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition">
                             <Check size={12} /> Approve
                           </button>
-                          <button onClick={() => updateStatus(r.id, "REJECTED")} className="flex items-center gap-1 rounded px-2 py-1 bg-red-100 text-red-700 text-xs hover:bg-red-200 transition">
+                          <button onClick={() => updateStatus(r.id, "REJECTED")} className="flex items-center gap-1 rounded px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition">
                             <X size={12} /> Reject
                           </button>
                         </>
@@ -207,7 +244,7 @@ export default function Leaves() {
                 )}
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No leave requests found</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No leave requests found</td></tr>}
           </tbody>
         </table>
       </div>

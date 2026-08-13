@@ -26,7 +26,13 @@ def list_leaves(
         query = query.filter(models.Leave.employee_id == employee_id)
     if status:
         query = query.filter(models.Leave.status == status)
-    return query.order_by(models.Leave.applied_at.desc()).all()
+    records = query.order_by(models.Leave.applied_at.desc()).all()
+    for r in records:
+        if r.employee:
+            r.employee_name = f"{r.employee.first_name} {r.employee.last_name}".strip()
+            r.employee_number = r.employee.employee_number
+            r.branch = r.employee.branch.value if hasattr(r.employee.branch, "value") else str(r.employee.branch)
+    return records
 
 
 @router.post("", response_model=schemas.LeaveOut)
@@ -48,6 +54,10 @@ def apply_leave(
     db.add(leave)
     db.commit()
     db.refresh(leave)
+    if leave.employee:
+        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
+        leave.employee_number = leave.employee.employee_number
+        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
     return leave
 
 
@@ -79,6 +89,10 @@ def update_leave_status(
 
     db.commit()
     db.refresh(leave)
+    if leave.employee:
+        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
+        leave.employee_number = leave.employee.employee_number
+        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
     return leave
 
 
