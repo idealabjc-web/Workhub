@@ -45,10 +45,11 @@ def get_or_create_dept(name):
         db.flush()
     return d
 
-dept_it  = get_or_create_dept("IT")
-dept_hr  = get_or_create_dept("HR")
-dept_fin = get_or_create_dept("Finance")
-dept_ops = get_or_create_dept("Operations")
+dept_it   = get_or_create_dept("IT")
+dept_tech = get_or_create_dept("Tech Team")
+dept_hr   = get_or_create_dept("HR")
+dept_fin  = get_or_create_dept("Finance")
+dept_ops  = get_or_create_dept("Operations")
 
 # ── Super Admin ───────────────────────────────────────────────────────────────
 admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRoleEnum.SUPER_ADMIN)

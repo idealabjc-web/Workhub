@@ -27,6 +27,7 @@ def run():
         print("Creating fresh departments and teams...")
         dept_data = [
             ("Engineering", "IDEALAB"),
+            ("Tech Team", "IDEALAB"),
             ("Product", "IDEALAB"),
             ("Design", "IDEALAB"),
             ("Human Resources", "IDEALAB"),
@@ -45,6 +46,7 @@ def run():
         db.flush()
 
         teams_data = [
+            ("Tech Team", "IDEALAB", "Tech Team"),
             ("Team Alpha", "IDEALAB", "Engineering"),
             ("Team Beta", "IDEALAB", "Product"),
             ("Team Gamma", "VIZAG", "Sales"),
