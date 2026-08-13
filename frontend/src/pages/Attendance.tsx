@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, Download, Upload, Plus, Check, X,
-  Lock, Unlock, FileSpreadsheet, Search
+  Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -161,6 +161,16 @@ export default function Attendance() {
     return Boolean(nameMatch || numMatch || dateMatch);
   });
 
+  const handleDeleteRow = async (id: string, empName?: string, dateStr?: string) => {
+    if (!confirm(`Undo / delete attendance record for ${empName || "employee"} on ${formatDateMDY(dateStr || "")}?`)) return;
+    try {
+      await api.delete(`/api/attendance/${id}`);
+      setRows((prev) => prev.filter((r) => r.id !== id));
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to delete attendance record");
+    }
+  };
+
   // Pagara Cell Click handler: saves updated status directly
   const handleCellStatusSelect = async (newStatus: string) => {
     if (!editingCell || !monthlyData || monthlyData.is_finalized) return;
@@ -175,6 +185,8 @@ export default function Attendance() {
         status: newStatus,
       });
 
+      const updatedVal = newStatus === "CLEAR" ? "" : newStatus;
+
       setMonthlyData((prev) => {
         if (!prev) return prev;
         return {
@@ -183,7 +195,7 @@ export default function Attendance() {
             if (emp.employee_id === empId) {
               return {
                 ...emp,
-                days: { ...emp.days, [day]: newStatus },
+                days: { ...emp.days, [day]: updatedVal },
               };
             }
             return emp;
@@ -480,6 +492,7 @@ export default function Attendance() {
                     <th className="px-4 py-3">CHECK IN</th>
                     <th className="px-4 py-3">CHECK OUT</th>
                     <th className="px-4 py-3">NOTES</th>
+                    <th className="px-4 py-3 text-right">ACTION</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -501,11 +514,20 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
                         <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                            title="Undo / Delete mistaken attendance entry"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
                   {filteredRows.length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No attendance records found</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No attendance records found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -603,6 +625,15 @@ export default function Attendance() {
                   <span className="text-xs">{cfg.abbr}</span>
                 </button>
               ))}
+            </div>
+
+            <div className="pt-1">
+              <button
+                onClick={() => handleCellStatusSelect("CLEAR")}
+                className="w-full p-2 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:border-red-800 dark:text-red-300 text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw size={14} /> Clear / Reset Cell (Undo Mistake)
+              </button>
             </div>
           </div>
         </div>

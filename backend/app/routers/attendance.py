@@ -321,14 +321,37 @@ def list_attendance(
     return records
 
 
-@router.patch("/cell", response_model=schemas.AttendanceOut)
+@router.delete("/{id}")
+def delete_attendance_record(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+):
+    att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+
+    month_str = att.date.strftime("%Y-%m")
+    fin = db.query(models.MonthlyAttendanceStatus).filter(
+        models.MonthlyAttendanceStatus.month == month_str,
+        models.MonthlyAttendanceStatus.is_finalized == True,
+    ).first()
+    if fin:
+        raise HTTPException(status_code=400, detail=f"Attendance for {month_str} is finalized and locked")
+
+    db.delete(att)
+    db.commit()
+    log_audit(db, current_user, "DELETE_ATTENDANCE", id, f"Deleted attendance record for date {att.date}, emp {att.employee_id}")
+    return {"message": "Attendance record deleted successfully"}
+
+
+@router.patch("/cell")
 def update_attendance_cell(
     payload: schemas.AttendanceCellUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
 ):
     """Pagara Manual Grid Cell Entry by HR/Admin"""
-    # Check if month is finalized
     month_str = payload.date.strftime("%Y-%m")
     fin = db.query(models.MonthlyAttendanceStatus).filter(
         models.MonthlyAttendanceStatus.month == month_str,
@@ -341,6 +364,22 @@ def update_attendance_cell(
         models.Attendance.employee_id == payload.employee_id,
         models.Attendance.date == payload.date,
     ).first()
+
+    # Clear / Undo mistaken cell entry
+    if not payload.status or payload.status.upper() in ["CLEAR", "RESET", "UNSET", "NONE"]:
+        if existing:
+            db.delete(existing)
+            db.commit()
+            log_audit(db, current_user, "CELL_CLEAR", existing.id, f"Cleared attendance for Date: {payload.date}, Emp: {payload.employee_id}")
+        return {
+            "id": existing.id if existing else "cleared",
+            "employee_id": payload.employee_id,
+            "date": payload.date,
+            "status": "",
+            "overtime_hours": 0.0,
+            "is_late": False,
+            "is_early_logout": False,
+        }
 
     status_enum = models.AttendanceStatusEnum(payload.status)
 
