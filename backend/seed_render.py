@@ -57,8 +57,9 @@ dept_fin  = get_or_create_dept("Finance")
 dept_ops  = get_or_create_dept("Operations")
 
 # ── Super Admins ───────────────────────────────────────────────────────────────
-admin_user = make_user("admin@hrportal.com", "Admin123!", models.UserRoleEnum.SUPER_ADMIN)
-superadmin_user = make_user("superadmin@idealab.com", "SuperAdmin123!", models.UserRoleEnum.SUPER_ADMIN)
+superadmin_hrportal = make_user("superadmin@hrportal.com", "SuperAdmin123!", models.UserRoleEnum.SUPER_ADMIN)
+admin_user          = make_user("admin@hrportal.com", "Admin123!", models.UserRoleEnum.SUPER_ADMIN)
+superadmin_user     = make_user("superadmin@idealab.com", "SuperAdmin123!", models.UserRoleEnum.SUPER_ADMIN)
 
 # ── HR Manager ────────────────────────────────────────────────────────────────
 hr_user = make_user("alluriroshitha999@gmail.com", "Hr123!", models.UserRoleEnum.HR)
