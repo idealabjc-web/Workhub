@@ -13,10 +13,14 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "957026139388-q05hohgt3dlsmhjf3fkdvv7us94j7rhl.apps.googleusercontent.com")
 
 
+from sqlalchemy import func
+
 @router.post("/login", response_model=schemas.TokenResponse)
 def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
+    clean_email = payload.email.strip().lower()
+    clean_password = payload.password.strip()
+    user = db.query(models.User).filter(func.lower(models.User.email) == clean_email).first()
+    if not user or not verify_password(clean_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
