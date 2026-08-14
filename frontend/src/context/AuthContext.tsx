@@ -23,33 +23,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem("hr_user");
     if (!stored) return null;
-    const parsed: AuthUser = JSON.parse(stored);
-    if (parsed.role === "HR" && (!parsed.full_name || parsed.full_name === "Hr Staff" || parsed.full_name === "Hr")) {
-      parsed.full_name = "Roshitha Alluri";
+    try {
+      const parsed: AuthUser = JSON.parse(stored);
+      if (parsed.role === "HR" && (!parsed.full_name || parsed.full_name === "Hr Staff" || parsed.full_name === "Hr")) {
+        parsed.full_name = "Roshitha Alluri";
+      }
+      return parsed;
+    } catch {
+      return null;
     }
-    return parsed;
   });
-  const [loading, setLoading] = useState(false);
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    return Boolean(localStorage.getItem("hr_token"));
+  });
 
   useEffect(() => {
     const token = localStorage.getItem("hr_token");
-    if (token) {
-      api.get("/api/employees/me").then((r) => {
-        if (r.data) {
-          setUser((prev) => {
-            if (!prev) return prev;
-            const updated: AuthUser = {
-              ...prev,
-              employee_id: r.data.id,
-              full_name: `${r.data.first_name} ${r.data.last_name}`,
-              profile_complete: true,
-            };
-            localStorage.setItem("hr_user", JSON.stringify(updated));
-            return updated;
-          });
-        }
-      }).catch(() => {});
+    if (!token) {
+      setLoading(false);
+      return;
     }
+
+    api
+      .get("/api/auth/me")
+      .then((r) => {
+        if (r.data) {
+          const { access_token, role, email, employee_id, full_name, profile_complete } = r.data;
+          if (access_token) {
+            localStorage.setItem("hr_token", access_token);
+          }
+          const updatedUser: AuthUser = {
+            email: email || user?.email || "",
+            role: role || user?.role || "EMPLOYEE",
+            employee_id: employee_id || user?.employee_id,
+            full_name: full_name || user?.full_name,
+            profile_complete: profile_complete !== undefined ? profile_complete : user?.profile_complete,
+          };
+          if (updatedUser.role === "HR" && (!updatedUser.full_name || updatedUser.full_name === "Hr Staff" || updatedUser.full_name === "Hr")) {
+            updatedUser.full_name = "Roshitha Alluri";
+          }
+          localStorage.setItem("hr_user", JSON.stringify(updatedUser));
+          setUser(updatedUser);
+        }
+      })
+      .catch((err) => {
+        if (err.response?.status === 401) {
+          localStorage.removeItem("hr_token");
+          localStorage.removeItem("hr_user");
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const login = async (email: string, password: string): Promise<AuthUser> => {

@@ -8,6 +8,8 @@ from app import models, schemas
 from app.auth import create_access_token, verify_password
 from app.database import get_db
 
+from app.deps import get_current_user
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "957026139388-q05hohgt3dlsmhjf3fkdvv7us94j7rhl.apps.googleusercontent.com")
@@ -101,3 +103,26 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
+
+
+@router.get("/me", response_model=schemas.TokenResponse)
+def get_current_user_auth(current_user: models.User = Depends(get_current_user)):
+    full_name = None
+    employee_id = None
+    if current_user.employee:
+        full_name = f"{current_user.employee.first_name} {current_user.employee.last_name}"
+        employee_id = current_user.employee.id
+
+    profile_complete = getattr(current_user, "profile_complete", False) or current_user.role.value in ("SUPER_ADMIN", "HR", "MANAGER", "FINANCE")
+
+    token = create_access_token({"sub": current_user.id, "role": current_user.role.value})
+
+    return schemas.TokenResponse(
+        access_token=token,
+        role=current_user.role.value,
+        email=str(current_user.email),
+        employee_id=employee_id,
+        full_name=full_name,
+        profile_complete=profile_complete,
+    )
+

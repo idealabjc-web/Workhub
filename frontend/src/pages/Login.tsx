@@ -14,14 +14,14 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && localStorage.getItem("hr_token")) {
+    if (!loading && user && localStorage.getItem("hr_token")) {
       if (user.profile_complete === false) {
         navigate("/onboard", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
