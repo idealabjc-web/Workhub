@@ -84,28 +84,38 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   const requestLocation = () => {
     if (!navigator.geolocation) {
       setGeoError("Geolocation is not supported by your browser");
+      setGettingLocation(false);
       return;
     }
 
     setGettingLocation(true);
     setGeoError(null);
 
+    // Fast attempt 1: High accuracy (short 4s timeout)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLng = pos.coords.longitude;
-        setCoords({ lat: userLat, lng: userLng });
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setGettingLocation(false);
       },
-      (err) => {
-        setGettingLocation(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          setGeoError("Location permission denied. Click 'Allow Remote Check-In' or grant browser GPS access.");
-        } else {
-          setGeoError(`Geolocation alert: ${err.message}`);
-        }
+      () => {
+        // Fallback attempt 2: Standard accuracy (Wi-Fi / IP positioning, fast & reliable)
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setGettingLocation(false);
+          },
+          (fallbackErr) => {
+            setGettingLocation(false);
+            if (fallbackErr.code === fallbackErr.PERMISSION_DENIED) {
+              setGeoError("Location permission denied in browser settings.");
+            } else {
+              setGeoError("GPS signal weak. Check-in is enabled via Remote Access.");
+            }
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
     );
   };
 
