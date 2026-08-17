@@ -179,7 +179,14 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Check-in failed");
+      let detailMsg = "Check-in failed. Please try again.";
+      if (err.response?.data?.detail) {
+        const d = err.response.data.detail;
+        if (typeof d === "string") detailMsg = d;
+        else if (Array.isArray(d)) detailMsg = d.map((x: any) => x.msg || JSON.stringify(x)).join(", ");
+        else detailMsg = JSON.stringify(d);
+      }
+      setError(detailMsg);
     } finally {
       setActionLoading(false);
     }
@@ -200,7 +207,14 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Check-out failed");
+      let detailMsg = "Check-out failed. Please try again.";
+      if (err.response?.data?.detail) {
+        const d = err.response.data.detail;
+        if (typeof d === "string") detailMsg = d;
+        else if (Array.isArray(d)) detailMsg = d.map((x: any) => x.msg || JSON.stringify(x)).join(", ");
+        else detailMsg = JSON.stringify(d);
+      }
+      setError(detailMsg);
     } finally {
       setActionLoading(false);
     }

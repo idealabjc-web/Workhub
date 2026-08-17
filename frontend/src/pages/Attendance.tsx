@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, Download, Upload, Plus, Check, X,
   Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2
@@ -97,6 +97,9 @@ export default function Attendance() {
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
 
   const [activeTab, setActiveTab] = useState<"personal" | "all_employees" | "pagara" | "corrections">("personal");
+  const [viewMode, setViewMode] = useState<"day" | "month">("day");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [allEmployees, setAllEmployees] = useState<Array<{ id: string; employee_number: string; first_name: string; last_name: string; branch: string }>>([]);
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [monthlyData, setMonthlyData] = useState<MonthlyData | null>(null);
@@ -116,6 +119,13 @@ export default function Attendance() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  const loadEmployeesList = async () => {
+    try {
+      const r = await api.get("/api/employees");
+      setAllEmployees(r.data || []);
+    } catch {}
+  };
+
   const loadPersonal = () => {
     api.get("/api/attendance", { params: { employee_id: user?.employee_id, month } })
       .then((r) => setRows(r.data))
@@ -125,6 +135,17 @@ export default function Attendance() {
   const loadAllAttendance = () => {
     setLoading(true);
     api.get("/api/attendance", { params: { month, branch: branchFilter || undefined } })
+      .then((r) => setRows(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  const loadDayAttendance = () => {
+    setLoading(true);
+    if (allEmployees.length === 0) {
+      loadEmployeesList();
+    }
+    api.get("/api/attendance", { params: { start_date: selectedDate, end_date: selectedDate, branch: branchFilter || undefined } })
       .then((r) => setRows(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -147,10 +168,16 @@ export default function Attendance() {
 
   useEffect(() => {
     if (activeTab === "personal") loadPersonal();
-    else if (activeTab === "all_employees") loadAllAttendance();
+    else if (activeTab === "all_employees") {
+      if (viewMode === "day") {
+        loadDayAttendance();
+      } else {
+        loadAllAttendance();
+      }
+    }
     else if (activeTab === "pagara") loadMonthlyGrid();
     else if (activeTab === "corrections") loadCorrections();
-  }, [activeTab, month, branchFilter]);
+  }, [activeTab, viewMode, selectedDate, month, branchFilter]);
 
   const filteredRows = rows.filter((r) => {
     if (!searchQuery.trim()) return true;
@@ -160,6 +187,107 @@ export default function Attendance() {
     const dateMatch = r.date?.includes(q);
     return Boolean(nameMatch || numMatch || dateMatch);
   });
+
+  const daySheetRows = useMemo(() => {
+    if (viewMode !== "day") return [];
+
+    let empList = allEmployees;
+    if (branchFilter) {
+      empList = empList.filter((e) => e.branch === branchFilter);
+    }
+
+    const attMap = new Map<string, AttendanceRow>();
+    rows.forEach((r) => attMap.set(r.employee_id, r));
+
+    const parts = selectedDate.split("-");
+    const yr = parseInt(parts[0], 10);
+    const mo = parseInt(parts[1], 10);
+    const dy = parseInt(parts[2], 10);
+    const isSunday = !isNaN(yr) && !isNaN(mo) && !isNaN(dy) && new Date(yr, mo - 1, dy).getDay() === 0;
+
+    const merged: AttendanceRow[] = empList.map((emp) => {
+      const existing = attMap.get(emp.id);
+      if (existing) {
+        return {
+          ...existing,
+          employee_name: existing.employee_name || `${emp.first_name} ${emp.last_name}`,
+          employee_number: existing.employee_number || emp.employee_number,
+          branch: existing.branch || emp.branch,
+        };
+      }
+      return {
+        id: `virtual-${emp.id}`,
+        employee_id: emp.id,
+        date: selectedDate,
+        status: isSunday ? "WEEK_OFF" : "ABSENT",
+        is_late: false,
+        employee_name: `${emp.first_name} ${emp.last_name}`,
+        employee_number: emp.employee_number,
+        branch: emp.branch,
+      };
+    });
+
+    if (!searchQuery.trim()) return merged;
+    const q = searchQuery.toLowerCase();
+    return merged.filter((r) => {
+      const nameMatch = r.employee_name?.toLowerCase().includes(q);
+      const numMatch = r.employee_number?.toLowerCase().includes(q);
+      return Boolean(nameMatch || numMatch);
+    });
+  }, [viewMode, allEmployees, rows, selectedDate, branchFilter, searchQuery]);
+
+  const dayStats = useMemo(() => {
+    const stats = { total: daySheetRows.length, present: 0, absent: 0, leave: 0, wfh: 0, half_day: 0, week_off: 0, holiday: 0 };
+    daySheetRows.forEach((r) => {
+      const s = r.status?.toUpperCase();
+      if (s === "PRESENT") stats.present++;
+      else if (s === "ABSENT") stats.absent++;
+      else if (s === "LEAVE") stats.leave++;
+      else if (s === "WFH") stats.wfh++;
+      else if (s === "HALF_DAY") stats.half_day++;
+      else if (s === "WEEK_OFF") stats.week_off++;
+      else if (s === "HOLIDAY") stats.holiday++;
+    });
+    return stats;
+  }, [daySheetRows]);
+
+  const exportDaySheetExcel = () => {
+    const exportRows = daySheetRows.map((r) => ({
+      "Employee #": r.employee_number || "—",
+      "Employee Name": r.employee_name || "—",
+      "Branch": r.branch || "—",
+      "Date": formatDateMDY(r.date),
+      "Day": formatDayName(r.date),
+      "Status": STATUS_CODES[r.status]?.name || r.status,
+      "Check In": formatLocalTime(r.check_in),
+      "Check Out": formatLocalTime(r.check_out),
+      "Notes": r.notes || "—",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Attendance_${selectedDate}`);
+    XLSX.writeFile(wb, `Day_Attendance_Sheet_${selectedDate}.xlsx`);
+  };
+
+  const exportLogsExcel = () => {
+    const exportRows = filteredRows.map((r) => ({
+      "Employee #": r.employee_number || "—",
+      "Employee Name": r.employee_name || "—",
+      "Branch": r.branch || "—",
+      "Date": formatDateMDY(r.date),
+      "Day": formatDayName(r.date),
+      "Status": STATUS_CODES[r.status]?.name || r.status,
+      "Check In": formatLocalTime(r.check_in),
+      "Check Out": formatLocalTime(r.check_out),
+      "Notes": r.notes || "—",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Logs_${month}`);
+    XLSX.writeFile(wb, `Attendance_Logs_${month}.xlsx`);
+  };
 
   const handleDeleteRow = async (id: string, empName?: string, dateStr?: string) => {
     if (!confirm(`Undo / delete attendance record for ${empName || "employee"} on ${formatDateMDY(dateStr || "")}?`)) return;
@@ -347,6 +475,11 @@ export default function Attendance() {
               <button onClick={() => setShowImportModal(true)} className="btn-secondary gap-1.5 text-xs py-1.5">
                 <Upload size={14} /> Import Excel
               </button>
+              {activeTab === "all_employees" && (
+                <button onClick={viewMode === "day" ? exportDaySheetExcel : exportLogsExcel} className="btn-secondary gap-1.5 text-xs py-1.5">
+                  <Download size={14} /> Export {viewMode === "day" ? "Day Sheet" : "Logs"}
+                </button>
+              )}
               {activeTab === "pagara" && (
                 <button onClick={exportMonthlyExcel} className="btn-secondary gap-1.5 text-xs py-1.5">
                   <Download size={14} /> Export Grid
@@ -365,14 +498,84 @@ export default function Attendance() {
 
       {/* Month & Filter Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1">
-          <button onClick={() => setMonth(m => { const d = new Date(m + "-01"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })} className="btn-secondary !px-2 !py-1.5">
-            <ChevronLeft size={15} />
-          </button>
-          <input type="month" className="input w-36 text-xs py-1.5" value={month} onChange={(e) => setMonth(e.target.value)} />
-          <button onClick={() => setMonth(m => { const d = new Date(m + "-01"); d.setMonth(d.getMonth() + 1); return d.toISOString().slice(0, 7); })} className="btn-secondary !px-2 !py-1.5">
-            <ChevronRight size={15} />
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeTab === "all_employees" && isHR && (
+            <div className="flex rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 shadow-xs mr-2">
+              <button
+                onClick={() => setViewMode("day")}
+                className={`px-3 py-1.5 text-xs font-semibold transition ${
+                  viewMode === "day" ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                Day Sheet
+              </button>
+              <button
+                onClick={() => setViewMode("month")}
+                className={`px-3 py-1.5 text-xs font-semibold transition ${
+                  viewMode === "month" ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                Monthly Logs
+              </button>
+            </div>
+          )}
+
+          {activeTab === "all_employees" && viewMode === "day" && isHR ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSelectedDate((prev) => {
+                  const parts = prev.split("-");
+                  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                  d.setDate(d.getDate() - 1);
+                  const yr = d.getFullYear();
+                  const mo = String(d.getMonth() + 1).padStart(2, "0");
+                  const dy = String(d.getDate()).padStart(2, "0");
+                  return `${yr}-${mo}-${dy}`;
+                })}
+                className="btn-secondary !px-2 !py-1.5"
+                title="Previous Day"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <input
+                type="date"
+                className="input w-36 text-xs py-1.5"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+              <button
+                onClick={() => setSelectedDate((prev) => {
+                  const parts = prev.split("-");
+                  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                  d.setDate(d.getDate() + 1);
+                  const yr = d.getFullYear();
+                  const mo = String(d.getMonth() + 1).padStart(2, "0");
+                  const dy = String(d.getDate()).padStart(2, "0");
+                  return `${yr}-${mo}-${dy}`;
+                })}
+                className="btn-secondary !px-2 !py-1.5"
+                title="Next Day"
+              >
+                <ChevronRight size={15} />
+              </button>
+              <button
+                onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                className="btn-secondary text-xs px-2.5 py-1.5 font-medium ml-1"
+              >
+                Today
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button onClick={() => setMonth(m => { const d = new Date(m + "-01"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })} className="btn-secondary !px-2 !py-1.5">
+                <ChevronLeft size={15} />
+              </button>
+              <input type="month" className="input w-36 text-xs py-1.5" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <button onClick={() => setMonth(m => { const d = new Date(m + "-01"); d.setMonth(d.getMonth() + 1); return d.toISOString().slice(0, 7); })} className="btn-secondary !px-2 !py-1.5">
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
 
         {activeTab === "all_employees" && isHR && (
@@ -419,6 +622,40 @@ export default function Attendance() {
           </div>
         )}
       </div>
+
+      {/* Day Sheet Summary KPIs */}
+      {activeTab === "all_employees" && viewMode === "day" && isHR && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+          <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+            <p className="text-[10px] uppercase font-bold text-slate-400">Total Staff</p>
+            <p className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{dayStats.total}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-950/20">
+            <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Present</p>
+            <p className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300">{dayStats.present}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20">
+            <p className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400">Absent</p>
+            <p className="text-lg font-extrabold text-red-700 dark:text-red-300">{dayStats.absent}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/40 bg-purple-50/50 dark:bg-purple-950/20">
+            <p className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400">On Leave</p>
+            <p className="text-lg font-extrabold text-purple-700 dark:text-purple-300">{dayStats.leave}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20">
+            <p className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400">WFH</p>
+            <p className="text-lg font-extrabold text-blue-700 dark:text-blue-300">{dayStats.wfh}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-950/20">
+            <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Half Day</p>
+            <p className="text-lg font-extrabold text-amber-700 dark:text-amber-300">{dayStats.half_day}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/40">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Week Off</p>
+            <p className="text-lg font-extrabold text-slate-700 dark:text-slate-300">{dayStats.week_off}</p>
+          </div>
+        </div>
+      )}
 
       {/* Legend for Status Codes */}
       <div className="flex flex-wrap items-center gap-1.5 text-[11px] p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
@@ -496,8 +733,9 @@ export default function Attendance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((r) => {
+                  {(viewMode === "day" ? daySheetRows : filteredRows).map((r) => {
                     const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
+                    const isVirtual = r.id.startsWith("virtual-");
                     return (
                       <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3.5">
@@ -515,19 +753,23 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
                         <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
                         <td className="px-4 py-3.5 text-right">
-                          <button
-                            onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                            title="Undo / Delete mistaken attendance entry"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          {!isVirtual ? (
+                            <button
+                              onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                              title="Undo / Delete mistaken attendance entry"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No entry</span>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
-                  {filteredRows.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No attendance records found</td></tr>
+                  {(viewMode === "day" ? daySheetRows : filteredRows).length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No attendance records found for selected filter</td></tr>
                   )}
                 </tbody>
               </table>

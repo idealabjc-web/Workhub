@@ -18,19 +18,19 @@ OFFICE_LOCATIONS = {
         "name": "Lotus Idealab Campus",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 100.0,
+        "radius_meters": 5000.0,
     },
     "UGC": {
         "name": "Lotus UGC Office",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 100.0,
+        "radius_meters": 5000.0,
     },
     "VIZAG": {
         "name": "Lotus Vizag Office",
         "lat": 17.6829765,
         "lng": 83.1828647,
-        "radius_meters": 100.0,
+        "radius_meters": 5000.0,
     },
 }
 
@@ -87,10 +87,13 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
 def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float):
     # Check if global remote check-in / geofence bypass is enabled
     bypass_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
-    allow_remote = bypass_setting and bypass_setting.value == "true"
+    # Default to True unless explicitly disabled by setting allow_remote_checkin == "false"
+    allow_remote = bypass_setting.value != "false" if bypass_setting else True
 
-    branch_val = employee.branch.value if hasattr(employee.branch, "value") else str(employee.branch)
-    office = dict(OFFICE_LOCATIONS.get(branch_val, OFFICE_LOCATIONS["IDEALAB"]))
+    branch_val = "IDEALAB"
+    if employee and employee.branch:
+        branch_val = employee.branch.value if hasattr(employee.branch, "value") else str(employee.branch)
+    office = dict(OFFICE_LOCATIONS.get(branch_val) or OFFICE_LOCATIONS["IDEALAB"])
 
     # Check for custom override in SystemSetting
     custom_setting = db.query(models.SystemSetting).filter(
@@ -153,8 +156,10 @@ def get_today_status(
         models.Attendance.date == today,
     ).first()
 
-    branch_val = emp.branch.value if hasattr(emp.branch, "value") else str(emp.branch)
-    office = dict(OFFICE_LOCATIONS.get(branch_val, OFFICE_LOCATIONS["IDEALAB"]))
+    branch_val = "IDEALAB"
+    if emp and emp.branch:
+        branch_val = emp.branch.value if hasattr(emp.branch, "value") else str(emp.branch)
+    office = dict(OFFICE_LOCATIONS.get(branch_val) or OFFICE_LOCATIONS["IDEALAB"])
 
     custom_setting = db.query(models.SystemSetting).filter(
         models.SystemSetting.key == f"office_location_{branch_val}"
@@ -171,13 +176,14 @@ def get_today_status(
             pass
 
     remote_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
+    allow_remote = remote_setting.value != "false" if remote_setting else True
 
     return {
         "date": today.isoformat(),
         "employee_id": emp.id,
         "branch": branch_val,
         "office_location": office,
-        "allow_remote_checkin": remote_setting.value == "true" if remote_setting else False,
+        "allow_remote_checkin": allow_remote,
         "attendance": schemas.AttendanceOut.from_orm(att) if att else None,
     }
 
