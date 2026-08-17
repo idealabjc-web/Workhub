@@ -1,4 +1,5 @@
 import traceback
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,14 +27,15 @@ from app.routers import (
     teams,
 )
 
-# Ensure tables are created safely without blocking module import
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as err:
-    print("Startup table creation note:", err)
 
-def auto_migrate_db():
-    """Ensure newly added columns exist in existing PostgreSQL / SQLite tables."""
+def init_db():
+    """Create tables and run migrations — called once at startup."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("DB tables ensured.")
+    except Exception as err:
+        print("Startup table creation note:", err)
+
     try:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE;"))
@@ -45,17 +47,20 @@ def auto_migrate_db():
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_name VARCHAR;"))
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;"))
             conn.commit()
-            print("Auto-migration: Ensured database columns exist.")
+            print("Auto-migration complete.")
     except Exception as e:
         print("Auto-migration note:", e)
 
-try:
-    auto_migrate_db()
-except Exception as e:
-    print("Startup auto-migration note:", e)
 
-app = FastAPI(title="LOTUS-HR Portal API", version="2.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
 
+
+app = FastAPI(title="LOTUS-HR Portal API", version="2.1.0", lifespan=lifespan)
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,36 +69,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.middleware("http")
-async def catch_exceptions_middleware(request: Request, call_next):
+async def cors_and_exceptions_middleware(request: Request, call_next):
     origin = request.headers.get("origin") or "*"
 
+    # Always handle CORS preflight immediately
     if request.method == "OPTIONS":
         response = JSONResponse(status_code=200, content={"status": "ok"})
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Max-Age"] = "86400"
         return response
 
     try:
         response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
     except Exception as exc:
         print("UNHANDLED EXCEPTION:", exc)
         traceback.print_exc()
         response = JSONResponse(
             status_code=500,
-            content={"detail": str(exc), "trace": traceback.format_exc()},
+            content={"detail": str(exc)},
         )
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
 
-# Core HR & Operations Routers
+    # Inject CORS headers on every response
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(employees.router)
 app.include_router(departments.router)
