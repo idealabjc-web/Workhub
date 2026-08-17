@@ -26,8 +26,11 @@ from app.routers import (
     teams,
 )
 
-# Ensure tables are created
-Base.metadata.create_all(bind=engine)
+# Ensure tables are created safely without blocking module import
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as err:
+    print("Startup table creation note:", err)
 
 def auto_migrate_db():
     """Ensure newly added columns exist in existing PostgreSQL / SQLite tables."""
@@ -46,7 +49,10 @@ def auto_migrate_db():
     except Exception as e:
         print("Auto-migration note:", e)
 
-auto_migrate_db()
+try:
+    auto_migrate_db()
+except Exception as e:
+    print("Startup auto-migration note:", e)
 
 app = FastAPI(title="LOTUS-HR Portal API", version="2.1.0")
 
