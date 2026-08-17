@@ -114,8 +114,11 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
     if (user_lat == 0.0 and user_lng == 0.0) or allow_remote:
         return office, 0.0
 
-    distance = calculate_haversine_distance(user_lat, user_lng, office["lat"], office["lng"])
-    allowed_radius = office["radius_meters"]
+    office_lat = float(office["lat"])
+    office_lng = float(office["lng"])
+    allowed_radius = float(office["radius_meters"])
+
+    distance = calculate_haversine_distance(user_lat, user_lng, office_lat, office_lng)
 
     if distance > allowed_radius:
         dist_str = f"{distance:.0f}m" if distance < 1000 else f"{distance/1000:.2f}km"
@@ -394,7 +397,7 @@ def update_attendance_cell(
         existing.status = status_enum
         db.commit()
         db.refresh(existing)
-        log_audit(db, current_user, "CELL_EDIT", existing.id, f"Date: {payload.date}, Emp: {payload.employee_id}, {old_status} -> {payload.status}")
+        log_audit(db, current_user, "CELL_EDIT", str(existing.id), f"Date: {payload.date}, Emp: {payload.employee_id}, {old_status} -> {payload.status}")
         return existing
 
     att = models.Attendance(
@@ -405,7 +408,7 @@ def update_attendance_cell(
     db.add(att)
     db.commit()
     db.refresh(att)
-    log_audit(db, current_user, "CELL_EDIT", att.id, f"Date: {payload.date}, Emp: {payload.employee_id}, Status set to {payload.status}")
+    log_audit(db, current_user, "CELL_EDIT", str(att.id), f"Date: {payload.date}, Emp: {payload.employee_id}, Status set to {payload.status}")
     return att
 
 
@@ -457,7 +460,7 @@ def check_in(
 
     db.commit()
     db.refresh(att)
-    log_audit(db, current_user, "CHECK_IN", att.id, f"Checked in at {office['name']} ({dist:.0f}m away)")
+    log_audit(db, current_user, "CHECK_IN", str(att.id), f"Checked in at {office['name']} ({dist:.0f}m away)")
     return att
 
 
