@@ -60,17 +60,20 @@ app.add_middleware(
 
 @app.middleware("http")
 async def catch_exceptions_middleware(request: Request, call_next):
-    # Handle CORS preflight explicitly if needed
+    origin = request.headers.get("origin") or "*"
+
     if request.method == "OPTIONS":
         response = JSONResponse(status_code=200, content={"status": "ok"})
-        origin = request.headers.get("origin", "*")
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
 
     try:
         response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
         return response
     except Exception as exc:
         print("UNHANDLED EXCEPTION:", exc)
@@ -79,9 +82,8 @@ async def catch_exceptions_middleware(request: Request, call_next):
             status_code=500,
             content={"detail": str(exc), "trace": traceback.format_exc()},
         )
-        origin = request.headers.get("origin", "*")
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
 
