@@ -48,10 +48,6 @@ def apply_leave(
     db.add(leave)
     db.commit()
     db.refresh(leave)
-    if leave.employee:
-        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
-        leave.employee_number = leave.employee.employee_number
-        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
     return leave
 
 
@@ -83,10 +79,6 @@ def update_leave_status(
 
     db.commit()
     db.refresh(leave)
-    if leave.employee:
-        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
-        leave.employee_number = leave.employee.employee_number
-        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
     return leave
 
 
@@ -121,11 +113,8 @@ def update_leave(
 
     db.commit()
     db.refresh(leave)
-    if leave.employee:
-        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
-        leave.employee_number = leave.employee.employee_number
-        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
     return leave
+
 
 
 def get_annual_leaves_by_gender(gender: Optional[str]) -> int:
