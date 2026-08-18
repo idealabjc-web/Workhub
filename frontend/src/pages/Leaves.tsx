@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Check, X, Trash2, Calendar, Eye, FileText } from "lucide-react";
+import { Plus, Check, X, Trash2, Calendar, Eye, FileText, Pencil } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -54,11 +54,43 @@ export default function Leaves() {
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRow | null>(null);
+  const [editingLeave, setEditingLeave] = useState<LeaveRow | null>(null);
+  const [editReason, setEditReason] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [statusFilter, setStatusFilter] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { user } = useAuth();
   const canApprove = user && ["SUPER_ADMIN", "HR", "MANAGER"].includes(user.role);
+
+  const canEditLeave = (r: LeaveRow) => {
+    if (canApprove) return true;
+    return user?.employee_id === r.employee_id && r.status === "PENDING";
+  };
+
+  const startEditReason = (leave: LeaveRow) => {
+    setEditingLeave(leave);
+    setEditReason(leave.reason || "");
+  };
+
+  const handleSaveReason = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLeave) return;
+    setSavingEdit(true);
+    try {
+      const res = await api.patch(`/api/leaves/${editingLeave.id}`, { reason: editReason });
+      const updated = res.data;
+      setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, reason: updated.reason } : r)));
+      if (selectedLeave && selectedLeave.id === editingLeave.id) {
+        setSelectedLeave({ ...selectedLeave, reason: updated.reason });
+      }
+      setEditingLeave(null);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to update leave reason");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const load = () => {
     const params: any = {};
@@ -97,6 +129,7 @@ export default function Leaves() {
     const diff = new Date(end).getTime() - new Date(start).getTime();
     return Math.max(Math.ceil(diff / 86400000) + 1, 1);
   };
+
 
   const balanceColor = (used: number, total: number) => {
     const pct = used / total;
@@ -226,7 +259,7 @@ export default function Leaves() {
                 <td className="px-4 py-3.5 text-center font-semibold">{daysBetween(r.start_date, r.end_date)}</td>
                 <td className="px-4 py-3.5 max-w-48">
                   <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 group">
-                    <span className="truncate max-w-[160px]">{r.reason || "—"}</span>
+                    <span className="truncate max-w-[130px]">{r.reason || "—"}</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); setSelectedLeave(r); }}
                       className="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-brand-600 transition text-[11px] font-medium flex items-center gap-1"
@@ -234,6 +267,15 @@ export default function Leaves() {
                     >
                       <Eye size={12} /> View
                     </button>
+                    {canEditLeave(r) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEditReason(r); }}
+                        className="p-1 rounded bg-slate-100 hover:bg-brand-100 dark:bg-slate-800 dark:hover:bg-brand-950/60 text-slate-500 hover:text-brand-600 transition text-[11px] font-medium flex items-center gap-1"
+                        title="Edit leave reason"
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3.5 text-slate-400 text-xs">{formatDateMDY(r.applied_at)}</td>
@@ -327,7 +369,18 @@ export default function Leaves() {
 
             {/* FULL REASON SECTION */}
             <div className="space-y-1.5">
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Full Reason for Leave</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Full Reason for Leave</p>
+                {canEditLeave(selectedLeave) && (
+                  <button
+                    type="button"
+                    onClick={() => startEditReason(selectedLeave)}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                  >
+                    <Pencil size={12} /> Edit Reason
+                  </button>
+                )}
+              </div>
               <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 text-slate-800 dark:text-slate-200 text-xs leading-relaxed font-medium whitespace-pre-wrap">
                 {selectedLeave.reason || "No detailed reason provided."}
               </div>
@@ -366,6 +419,64 @@ export default function Leaves() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT REASON MODAL */}
+      {editingLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setEditingLeave(null)}>
+          <div className="card p-6 max-w-lg w-full space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
+                  <Pencil size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Edit Leave Reason</h3>
+                  <p className="text-xs text-slate-400">
+                    {editingLeave.employee_name || "Employee"} · {LEAVE_TYPE_LABEL[editingLeave.leave_type] || editingLeave.leave_type} ({formatDateMDY(editingLeave.start_date)} - {formatDateMDY(editingLeave.end_date)})
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setEditingLeave(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveReason} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                  Reason for Leave
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  className="input text-sm w-full"
+                  placeholder="Enter reason for leave..."
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingLeave(null)}
+                  className="btn-secondary text-xs px-4 py-2"
+                  disabled={savingEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary text-xs px-4 py-2"
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

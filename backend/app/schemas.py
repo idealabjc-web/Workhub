@@ -274,9 +274,17 @@ class LeaveCreate(BaseModel):
     reason: Optional[str] = None
 
 
+class LeaveUpdate(BaseModel):
+    reason: Optional[str] = None
+    leave_type: Optional[str] = None
+    start_date: Optional[datetime.date] = None
+    end_date: Optional[datetime.date] = None
+
+
 class LeaveStatusUpdate(BaseModel):
     status: str
     comments: Optional[str] = None
+
 
 
 class LeaveOut(BaseModel):

@@ -90,6 +90,44 @@ def update_leave_status(
     return leave
 
 
+@router.patch("/{leave_id}", response_model=schemas.LeaveOut)
+def update_leave(
+    leave_id: str,
+    payload: schemas.LeaveUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    leave = db.query(models.Leave).filter(models.Leave.id == leave_id).first()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Leave not found")
+
+    # Employee can only edit their own leave. Super Admin, HR, Manager can edit any.
+    if current_user.role.value == "EMPLOYEE":
+        if not current_user.employee or leave.employee_id != current_user.employee.id:
+            raise HTTPException(status_code=403, detail="Not authorized to edit this leave")
+        if leave.status != "PENDING":
+            raise HTTPException(status_code=400, detail="Cannot edit a non-pending leave request")
+
+    if payload.reason is not None:
+        leave.reason = payload.reason
+    if payload.leave_type is not None:
+        leave.leave_type = payload.leave_type
+    if payload.start_date is not None:
+        leave.start_date = payload.start_date
+    if payload.end_date is not None:
+        if payload.end_date < (payload.start_date or leave.start_date):
+            raise HTTPException(status_code=400, detail="End date must be after start date")
+        leave.end_date = payload.end_date
+
+    db.commit()
+    db.refresh(leave)
+    if leave.employee:
+        leave.employee_name = f"{leave.employee.first_name} {leave.employee.last_name}".strip()
+        leave.employee_number = leave.employee.employee_number
+        leave.branch = leave.employee.branch.value if hasattr(leave.employee.branch, "value") else str(leave.employee.branch)
+    return leave
+
+
 def get_annual_leaves_by_gender(gender: Optional[str]) -> int:
     """Female -> 12 leaves per year; Male / Other -> 6 leaves per year."""
     if gender and gender.strip().lower() in ["female", "f"]:
