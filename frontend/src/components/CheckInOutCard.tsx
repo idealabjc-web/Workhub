@@ -82,6 +82,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   };
 
   const requestLocation = () => {
+    loadStatus();
     if (!navigator.geolocation) {
       setGeoError("Geolocation is not supported by your browser");
       setGettingLocation(false);
@@ -122,6 +123,20 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   useEffect(() => {
     loadStatus();
     requestLocation();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        loadStatus();
+        requestLocation();
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   // Calculate distance whenever coords or office_location changes
