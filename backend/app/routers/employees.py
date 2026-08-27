@@ -343,6 +343,33 @@ def delete_employee_document(
     return {"detail": "Document deleted"}
 
 
+@router.patch("/{employee_id}/documents/{doc_id}", response_model=schemas.EmployeeDocumentOut)
+def update_employee_document(
+    employee_id: str,
+    doc_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR"])),
+):
+    doc = db.query(models.EmployeeDocument).filter(
+        models.EmployeeDocument.id == doc_id,
+        models.EmployeeDocument.employee_id == employee_id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if "file_url" in payload and payload["file_url"]:
+        doc.file_url = payload["file_url"]
+    if "file_name" in payload and payload["file_name"]:
+        doc.file_name = payload["file_name"]
+    if "doc_type" in payload and payload["doc_type"]:
+        doc.doc_type = payload["doc_type"]
+
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
 @router.get("/{employee_id}/leave-balances", response_model=List[schemas.LeaveBalanceOut])
 def get_employee_leave_balances(
     employee_id: str,

@@ -184,6 +184,23 @@ export default function EmployeeProfile() {
     setDocuments((prev) => prev.filter((d) => d.id !== docId));
   };
 
+  const handleUpdateDocFile = (docId: string, file: File) => {
+    if (!emp) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const fileUrl = evt.target?.result as string;
+      const r = await api.patch(`/api/employees/${emp.id}/documents/${docId}`, {
+        file_url: fileUrl,
+        file_name: file.name,
+      }).catch(() => null);
+      if (r) {
+        setDocuments((prev) => prev.map((d) => (d.id === docId ? { ...d, ...r.data } : d)));
+        setPreviewDoc((prev) => (prev && prev.id === docId ? { ...prev, ...r.data } : prev));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (!emp) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -653,7 +670,7 @@ export default function EmployeeProfile() {
 
       {/* Full-Screen Document / Certificate Preview Modal */}
       {previewDoc && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 backdrop-blur-md p-4 sm:p-6 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-md p-4 sm:p-6 overflow-hidden">
           {/* Header Bar */}
           <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl px-5 py-3.5 mb-4 text-white shadow-2xl shrink-0">
             <div className="flex items-center gap-3 min-w-0">
@@ -667,6 +684,20 @@ export default function EmployeeProfile() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {canManage && (
+                <label className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 font-semibold text-xs hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer">
+                  <Upload size={14} /> Upload / Replace File
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUpdateDocFile(previewDoc.id, f);
+                    }}
+                  />
+                </label>
+              )}
               {previewDoc.file_url && (
                 <a
                   href={previewDoc.file_url}
@@ -688,64 +719,48 @@ export default function EmployeeProfile() {
             </div>
           </div>
 
-          {/* Document Content View */}
-          <div className="flex-1 w-full max-w-5xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col items-center justify-center relative">
+          {/* Document Content Viewer */}
+          <div className="flex-1 w-full max-w-6xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col items-center justify-center relative">
             {previewDoc.file_url && previewDoc.file_url.startsWith("data:image/") ? (
-              <img
-                src={previewDoc.file_url}
-                alt={previewDoc.file_name || previewDoc.doc_type}
-                className="max-h-full max-w-full object-contain p-4 rounded-xl"
-              />
-            ) : previewDoc.file_url && (previewDoc.file_url.startsWith("data:application/pdf") || previewDoc.file_url.endsWith(".pdf")) ? (
+              <div className="w-full h-full p-4 flex items-center justify-center overflow-auto">
+                <img
+                  src={previewDoc.file_url}
+                  alt={previewDoc.file_name || previewDoc.doc_type}
+                  className="max-h-full max-w-full object-contain rounded-xl shadow-lg"
+                />
+              </div>
+            ) : previewDoc.file_url && (previewDoc.file_url.startsWith("data:") || previewDoc.file_url.startsWith("http") || previewDoc.file_url.endsWith(".pdf")) ? (
               <iframe
                 src={previewDoc.file_url}
                 title={previewDoc.file_name || previewDoc.doc_type}
                 className="w-full h-full border-0 bg-white"
               />
             ) : (
-              /* Verified Digital Certificate Sheet for Uploaded/Seeded Documents */
-              <div className="w-full h-full p-6 sm:p-12 overflow-y-auto flex items-center justify-center">
-                <div className="w-full max-w-3xl bg-white text-slate-900 rounded-2xl p-8 sm:p-12 shadow-2xl border-8 border-brand-600/20 relative space-y-8 font-serif text-center">
-                  <div className="absolute top-4 left-4 right-4 flex justify-between text-[10px] font-sans font-bold text-slate-400 uppercase tracking-widest">
-                    <span>Lotus Idealab HR Records</span>
-                    <span>Verified Official Document</span>
-                  </div>
-
-                  <div className="pt-4 space-y-2">
-                    <div className="w-16 h-16 rounded-full bg-brand-50 text-brand-600 mx-auto flex items-center justify-center border-2 border-brand-200">
-                      <FileText size={32} />
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{previewDoc.doc_type}</h2>
-                    <p className="text-xs font-sans text-brand-600 font-semibold tracking-wider uppercase">Official Employee Certificate</p>
-                  </div>
-
-                  <div className="py-4 border-y border-slate-200 space-y-3 font-sans">
-                    <p className="text-xs text-slate-500 uppercase tracking-wide">This certifies that the document</p>
-                    <p className="text-lg font-bold text-slate-800 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 inline-block">{previewDoc.file_name || `${previewDoc.doc_type}_Record.pdf`}</p>
-                    <p className="text-sm text-slate-600">
-                      is registered under staff member <b className="text-slate-900">{emp.first_name} {emp.last_name}</b> ({emp.employee_number})
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Department / Team: <b>{(emp as any).team_name || emp.branch}</b> · Date of Joining: <b>{emp.date_of_joining}</b>
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-4 font-sans text-xs pt-4">
-                    <div className="text-left">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Upload Date</p>
-                      <p className="font-semibold text-slate-700">{previewDoc.uploaded_at ? new Date(previewDoc.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : new Date().toLocaleDateString()}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200 font-bold text-[11px]">
-                      <Check size={14} /> HR Digitally Verified Record
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Document ID</p>
-                      <p className="font-mono text-slate-600 text-[11px]">{previewDoc.id.slice(0, 12)}</p>
-                    </div>
-                  </div>
+              /* No File Attached - Upload Prompt */
+              <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-md">
+                <div className="w-16 h-16 rounded-2xl bg-brand-500/20 text-brand-400 flex items-center justify-center border border-brand-500/30">
+                  <Upload size={32} />
                 </div>
+                <div className="space-y-1">
+                  <h4 className="text-lg font-bold text-white">No File Attached to Record</h4>
+                  <p className="text-xs text-slate-400">
+                    Upload the original document file (PDF / Image) for <b>{previewDoc.file_name || previewDoc.doc_type}</b> to view it here in full screen.
+                  </p>
+                </div>
+                {canManage && (
+                  <label className="btn-primary gap-2 cursor-pointer text-xs py-2.5 px-5 shadow-lg">
+                    <Upload size={15} /> Upload Original File Now
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUpdateDocFile(previewDoc.id, f);
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             )}
           </div>
