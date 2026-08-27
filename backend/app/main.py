@@ -46,6 +46,8 @@ def init_db():
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_id VARCHAR;"))
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_name VARCHAR;"))
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;"))
+            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_wfh_allowed BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS file_url TEXT;"))
             conn.commit()
             print("Auto-migration complete.")
     except Exception as e:
