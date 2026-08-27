@@ -36,20 +36,31 @@ def init_db():
     except Exception as err:
         print("Startup table creation note:", err)
 
+    migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lat FLOAT;",
+        "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lng FLOAT;",
+        "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lat FLOAT;",
+        "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lng FLOAT;",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_id VARCHAR;",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_name VARCHAR;",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_wfh_allowed BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS file_url TEXT;",
+    ]
+
     try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT FALSE;"))
-            conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lat FLOAT;"))
-            conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_lng FLOAT;"))
-            conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lat FLOAT;"))
-            conn.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_lng FLOAT;"))
-            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_id VARCHAR;"))
-            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_name VARCHAR;"))
-            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;"))
-            conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_wfh_allowed BOOLEAN DEFAULT FALSE;"))
-            conn.execute(text("ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS file_url TEXT;"))
-            conn.commit()
-            print("Auto-migration complete.")
+        with engine.begin() as conn:
+            for stmt in migrations:
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    if "IF NOT EXISTS" in stmt:
+                        try:
+                            conn.execute(text(stmt.replace(" IF NOT EXISTS", "")))
+                        except Exception:
+                            pass
+        print("Auto-migration complete.")
     except Exception as e:
         print("Auto-migration note:", e)
 
