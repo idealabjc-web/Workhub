@@ -139,25 +139,41 @@ export default function Expenses() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.employee_id) return;
-    await api.post("/api/expenses", {
-      ...form,
-      employee_id: user.employee_id,
-      amount: Number(form.amount),
-    }).catch(() => {});
+    if (!form.amount || Number(form.amount) <= 0) {
+      alert("Please enter a valid expense amount");
+      return;
+    }
+    try {
+      const payload: any = {
+        ...form,
+        amount: Number(form.amount),
+      };
+      if (user?.employee_id) {
+        payload.employee_id = user.employee_id;
+      }
+      await api.post("/api/expenses", payload);
 
-    setShowForm(false);
-    setForm({
-      category: "Travel",
-      amount: "",
-      date: new Date().toISOString().slice(0, 10),
-      description: "",
-      vendor_name: "",
-      payment_method: "Card",
-      receipt_url: "",
-    });
-    setSelectedFile(null);
-    load();
+      const createdMonth = form.date.slice(0, 7);
+      if (monthFilter && monthFilter !== createdMonth) {
+        setMonthFilter(createdMonth);
+      } else {
+        load();
+      }
+
+      setShowForm(false);
+      setSelectedFile(null);
+      setForm({
+        category: "Travel",
+        amount: "",
+        date: new Date().toISOString().slice(0, 10),
+        description: "",
+        vendor_name: "",
+        payment_method: "Cash",
+        receipt_url: "",
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to submit expense claim");
+    }
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -228,8 +244,16 @@ export default function Expenses() {
       )}
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input type="month" className="input w-40 text-sm" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
+        {monthFilter && (
+          <button
+            onClick={() => setMonthFilter("")}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          >
+            Show All Months
+          </button>
+        )}
         <select className="input w-40 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
           <option value="PENDING">Pending</option>

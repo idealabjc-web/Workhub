@@ -38,7 +38,15 @@ def list_expenses(
             extract("year", models.Expense.date) == year,
             extract("month", models.Expense.date) == m,
         )
-    return query.order_by(models.Expense.created_at.desc()).all()
+    records = query.order_by(models.Expense.created_at.desc()).all()
+    for r in records:
+        if r.employee:
+            r.employee_name = f"{r.employee.first_name} {r.employee.last_name}".strip()
+            r.employee_number = r.employee.employee_number
+        else:
+            r.employee_name = "Staff Member"
+            r.employee_number = "—"
+    return records
 
 
 @router.post("", response_model=schemas.ExpenseOut)
@@ -47,10 +55,23 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    emp_id = payload.employee_id
+    if not emp_id and current_user.employee:
+        emp_id = current_user.employee.id
+
+    # Fallback to first employee if emp_id is missing (e.g. for Admin without employee record)
+    if not emp_id:
+        first_emp = db.query(models.Employee).first()
+        if first_emp:
+            emp_id = first_emp.id
+
+    if not emp_id:
+        raise HTTPException(status_code=400, detail="An employee profile must exist to log expenses")
+
     expense = models.Expense(
-        employee_id=payload.employee_id,
-        branch=payload.branch,
-        department_id=payload.department_id,
+        employee_id=emp_id,
+        branch=payload.branch or (current_user.employee.branch.value if current_user.employee and hasattr(current_user.employee.branch, "value") else "IDEALAB"),
+        department_id=payload.department_id or (current_user.employee.department_id if current_user.employee else None),
         category=payload.category,
         amount=payload.amount,
         date=payload.date,
@@ -62,6 +83,11 @@ def create_expense(
     db.add(expense)
     db.commit()
     db.refresh(expense)
+
+    if expense.employee:
+        expense.employee_name = f"{expense.employee.first_name} {expense.employee.last_name}".strip()
+        expense.employee_number = expense.employee.employee_number
+
     return expense
 
 
@@ -79,6 +105,9 @@ def update_expense_status(
     expense.approved_by = current_user.id
     db.commit()
     db.refresh(expense)
+    if expense.employee:
+        expense.employee_name = f"{expense.employee.first_name} {expense.employee.last_name}".strip()
+        expense.employee_number = expense.employee.employee_number
     return expense
 
 
@@ -102,17 +131,22 @@ def delete_expense(
 def expense_summary(
     month: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "FINANCE"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     from datetime import date
-    from sqlalchemy import extract, func
-    m_str = month or date.today().strftime("%Y-%m")
-    year, m = map(int, m_str.split("-"))
+    from sqlalchemy import extract
+    query = db.query(models.Expense)
 
-    query = db.query(models.Expense).filter(
-        extract("year", models.Expense.date) == year,
-        extract("month", models.Expense.date) == m,
-    )
+    if current_user.role.value == "EMPLOYEE" and current_user.employee:
+        query = query.filter(models.Expense.employee_id == current_user.employee.id)
+
+    if month:
+        year, m = map(int, month.split("-"))
+        query = query.filter(
+            extract("year", models.Expense.date) == year,
+            extract("month", models.Expense.date) == m,
+        )
+
     records = query.all()
 
     by_category: dict = {}
@@ -120,7 +154,7 @@ def expense_summary(
         by_category[r.category] = by_category.get(r.category, 0) + r.amount
 
     return {
-        "month": m_str,
+        "month": month or date.today().strftime("%Y-%m"),
         "total": sum(r.amount for r in records),
         "pending": sum(r.amount for r in records if r.status == "PENDING"),
         "approved": sum(r.amount for r in records if r.status == "APPROVED"),
