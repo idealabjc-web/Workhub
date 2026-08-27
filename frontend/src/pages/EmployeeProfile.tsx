@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Briefcase, FileText, Clock, Edit2, Check, X,
-  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2, Eye, Download
+  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2, Eye, Download, ExternalLink
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -38,6 +38,19 @@ interface LeaveBalance { id: string; leave_type: string; total: number; used: nu
 
 const TABS = ["Personal", "Employment", "Documents", "Timeline"] as const;
 type Tab = typeof TABS[number];
+
+function dataURLtoBlob(dataurl: string): Blob {
+  const arr = dataurl.split(',');
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
 
 const branchColors: Record<string, string> = {
   IDEALAB: "bg-brand-100 text-brand-700",
@@ -75,6 +88,29 @@ export default function EmployeeProfile() {
 
   // Full-Screen Preview Modal State
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (previewDoc?.file_url) {
+      const urlStr = previewDoc.file_url;
+      if (urlStr.startsWith("data:") && !urlStr.startsWith("data:image/")) {
+        try {
+          const blob = dataURLtoBlob(urlStr);
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
+          return () => {
+            URL.revokeObjectURL(blobUrl);
+          };
+        } catch (e) {
+          setPdfBlobUrl(urlStr);
+        }
+      } else {
+        setPdfBlobUrl(urlStr);
+      }
+    } else {
+      setPdfBlobUrl(null);
+    }
+  }, [previewDoc]);
   const [saving, setSaving] = useState(false);
   const [newDocType, setNewDocType] = useState("Resume");
   const [newDocName, setNewDocName] = useState("");
@@ -698,6 +734,17 @@ export default function EmployeeProfile() {
                   />
                 </label>
               )}
+              {pdfBlobUrl && (
+                <a
+                  href={pdfBlobUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 font-semibold text-xs hover:bg-slate-700 transition flex items-center gap-1.5"
+                  title="Open PDF in new browser tab"
+                >
+                  <ExternalLink size={14} /> Open in Tab
+                </a>
+              )}
               {previewDoc.file_url && (
                 <a
                   href={previewDoc.file_url}
@@ -729,12 +776,15 @@ export default function EmployeeProfile() {
                   className="max-h-full max-w-full object-contain rounded-xl shadow-lg"
                 />
               </div>
-            ) : previewDoc.file_url && (previewDoc.file_url.startsWith("data:") || previewDoc.file_url.startsWith("http") || previewDoc.file_url.endsWith(".pdf")) ? (
-              <iframe
-                src={previewDoc.file_url}
-                title={previewDoc.file_name || previewDoc.doc_type}
+            ) : pdfBlobUrl ? (
+              <object
+                data={pdfBlobUrl}
+                type="application/pdf"
                 className="w-full h-full border-0 bg-white"
-              />
+              >
+                <embed src={pdfBlobUrl} type="application/pdf" className="w-full h-full" />
+                <iframe src={pdfBlobUrl} title={previewDoc.file_name || previewDoc.doc_type} className="w-full h-full border-0 bg-white" />
+              </object>
             ) : (
               /* No File Attached - Upload Prompt */
               <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-md">
