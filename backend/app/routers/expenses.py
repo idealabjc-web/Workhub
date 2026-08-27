@@ -39,13 +39,6 @@ def list_expenses(
             extract("month", models.Expense.date) == m,
         )
     records = query.order_by(models.Expense.created_at.desc()).all()
-    for r in records:
-        if r.employee:
-            r.employee_name = f"{r.employee.first_name} {r.employee.last_name}".strip()
-            r.employee_number = r.employee.employee_number
-        else:
-            r.employee_name = "Staff Member"
-            r.employee_number = "—"
     return records
 
 
@@ -84,10 +77,6 @@ def create_expense(
     db.commit()
     db.refresh(expense)
 
-    if expense.employee:
-        expense.employee_name = f"{expense.employee.first_name} {expense.employee.last_name}".strip()
-        expense.employee_number = expense.employee.employee_number
-
     return expense
 
 
@@ -105,9 +94,6 @@ def update_expense_status(
     expense.approved_by = current_user.id
     db.commit()
     db.refresh(expense)
-    if expense.employee:
-        expense.employee_name = f"{expense.employee.first_name} {expense.employee.last_name}".strip()
-        expense.employee_number = expense.employee.employee_number
     return expense
 
 
