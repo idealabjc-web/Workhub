@@ -164,6 +164,7 @@ class Employee(Base):
     employment_type = Column(Enum(EmploymentTypeEnum), default=EmploymentTypeEnum.FULL_TIME, nullable=False)
     status = Column(Enum(EmployeeStatusEnum), default=EmployeeStatusEnum.ACTIVE, nullable=False)
     basic_salary = Column(Float, nullable=True, default=0.0)
+    is_wfh_allowed = Column(Boolean, default=False, nullable=False)
     profile_photo_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 

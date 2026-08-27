@@ -106,6 +106,7 @@ class EmployeeCreate(BaseModel):
     branch: str = "IDEALAB"
     employment_type: str = "Full-Time"
     basic_salary: Optional[float] = 0.0
+    is_wfh_allowed: Optional[bool] = False
     role: str = "EMPLOYEE"
 
 
@@ -130,6 +131,7 @@ class EmployeeUpdate(BaseModel):
     employment_type: Optional[str] = None
     status: Optional[str] = None
     basic_salary: Optional[float] = None
+    is_wfh_allowed: Optional[bool] = None
 
 
 class EmployeeOut(BaseModel):
@@ -155,6 +157,7 @@ class EmployeeOut(BaseModel):
     employment_type: str
     status: str
     basic_salary: Optional[float] = None
+    is_wfh_allowed: bool = False
     profile_photo_url: Optional[str] = None
     created_at: datetime.datetime
 
@@ -209,6 +212,13 @@ class AttendanceCellUpdate(BaseModel):
     employee_id: str
     date: datetime.date
     status: str
+
+
+class AttendanceTimeUpdate(BaseModel):
+    check_in: Optional[str] = None  # HH:MM or ISO timestamp
+    check_out: Optional[str] = None  # HH:MM or ISO timestamp
+    status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class AttendanceOut(BaseModel):

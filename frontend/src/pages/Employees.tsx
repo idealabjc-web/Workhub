@@ -19,6 +19,7 @@ interface Employee {
   date_of_joining: string;
   employment_type: string;
   basic_salary?: number;
+  is_wfh_allowed?: boolean;
 }
 
 interface Department {
@@ -296,6 +297,17 @@ export default function Employees() {
               <input required type="date" className="input text-sm" value={form.date_of_joining} onChange={(e) => setForm({ ...form, date_of_joining: e.target.value })} />
             </div>
             <input type="number" placeholder="Basic Salary (₹)" className="input text-sm" value={form.basic_salary} onChange={(e) => setForm({ ...form, basic_salary: e.target.value })} />
+            <div className="flex items-center gap-2 pt-2 col-span-full">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(form as any).is_wfh_allowed || false}
+                  onChange={(e) => setForm({ ...form, is_wfh_allowed: e.target.checked } as any)}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4"
+                />
+                Allow Remote / Work From Home (Bypass Geofence)
+              </label>
+            </div>
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn-primary" disabled={submitting}>

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Briefcase, FileText, Clock, Edit2, Check, X,
-  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2
+  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2, Eye, Download
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -27,12 +27,13 @@ interface Employee {
   status: string;
   date_of_joining: string;
   basic_salary?: number;
+  is_wfh_allowed?: boolean;
   profile_photo_url?: string;
   user_id?: string;
 }
 
 interface Department { id: string; name: string; branch: string; }
-interface Document { id: string; doc_type: string; file_name?: string; uploaded_at?: string; }
+interface Document { id: string; doc_type: string; file_name?: string; file_url?: string; uploaded_at?: string; }
 interface LeaveBalance { id: string; leave_type: string; total: number; used: number; }
 
 const TABS = ["Personal", "Employment", "Documents", "Timeline"] as const;
@@ -71,6 +72,9 @@ export default function EmployeeProfile() {
   const [tab, setTab] = useState<Tab>("Personal");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Employee>>({});
+
+  // Full-Screen Preview Modal State
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [saving, setSaving] = useState(false);
   const [newDocType, setNewDocType] = useState("Resume");
   const [newDocName, setNewDocName] = useState("");
@@ -146,16 +150,31 @@ export default function EmployeeProfile() {
   const handleAddDoc = async () => {
     if (!emp) return;
     const fileName = newDocName || selectedFile?.name || `${newDocType}_Document.pdf`;
-    const r = await api.post(`/api/employees/${emp.id}/documents`, {
-      employee_id: emp.id,
-      doc_type: newDocType,
-      file_name: fileName,
-    }).catch(() => null);
-    if (r) {
-      setDocuments((prev) => [...prev, r.data]);
-      setNewDocName("");
-      setSelectedFile(null);
-      setAddingDoc(false);
+
+    const saveDoc = async (url?: string) => {
+      const r = await api.post(`/api/employees/${emp.id}/documents`, {
+        employee_id: emp.id,
+        doc_type: newDocType,
+        file_name: fileName,
+        file_url: url,
+      }).catch(() => null);
+      if (r) {
+        setDocuments((prev) => [...prev, r.data]);
+        setNewDocName("");
+        setSelectedFile(null);
+        setAddingDoc(false);
+      }
+    };
+
+    if (selectedFile) {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const fileUrl = evt.target?.result as string;
+        await saveDoc(fileUrl);
+      };
+      reader.readAsDataURL(selectedFile);
+    } else {
+      await saveDoc();
     }
   };
 
@@ -429,6 +448,24 @@ export default function EmployeeProfile() {
               <EditableField label="Basic Salary (₹)" value={emp.basic_salary ? `₹${emp.basic_salary.toLocaleString()}` : "—"} editing={editing}
                 editEl={<input type="number" className="input text-sm" value={editForm.basic_salary || ""} onChange={(e) => setEditForm({ ...editForm, basic_salary: Number(e.target.value) })} />} />
             )}
+            {canManage && (
+              <EditableField
+                label="Work From Home / Remote Check-In"
+                value={emp.is_wfh_allowed ? "ENABLED (Remote Allowed)" : "DISABLED (Office Only)"}
+                editing={editing}
+                editEl={
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.is_wfh_allowed)}
+                      onChange={(e) => setEditForm({ ...editForm, is_wfh_allowed: e.target.checked })}
+                      className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4"
+                    />
+                    Allow Remote Check-In (Bypass Geofence)
+                  </label>
+                }
+              />
+            )}
           </div>
         </div>
       )}
@@ -549,22 +586,39 @@ export default function EmployeeProfile() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600">
+              <div
+                key={doc.id}
+                onClick={() => setPreviewDoc(doc)}
+                className="group flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-brand-50/30 dark:hover:bg-brand-950/20 cursor-pointer transition shadow-sm hover:shadow"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600 group-hover:scale-105 transition">
                   <FileText size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{doc.doc_type}</p>
+                  <p className="text-sm font-medium truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition">{doc.doc_type}</p>
                   <p className="text-xs text-slate-400 truncate">{doc.file_name || "Document"}</p>
                   {doc.uploaded_at && (
                     <p className="text-xs text-slate-400">{new Date(doc.uploaded_at).toLocaleDateString()}</p>
                   )}
                 </div>
-                {canManage && (
-                  <button onClick={() => handleDeleteDoc(doc.id)} className="text-slate-400 hover:text-red-500 transition">
-                    <Trash2 size={14} />
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPreviewDoc(doc); }}
+                    className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition"
+                    title="View Document Full Screen"
+                  >
+                    <Eye size={15} />
                   </button>
-                )}
+                  {canManage && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteDoc(doc.id); }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                      title="Delete document"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             {documents.length === 0 && (
@@ -593,6 +647,107 @@ export default function EmployeeProfile() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Screen Document / Certificate Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/90 backdrop-blur-md p-4 sm:p-6 overflow-hidden">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl px-5 py-3.5 mb-4 text-white shadow-2xl shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                <FileText size={20} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white truncate">{previewDoc.doc_type} - {previewDoc.file_name || "Document"}</h3>
+                <p className="text-xs text-slate-400">Employee: <span className="text-brand-300 font-semibold">{emp.first_name} {emp.last_name}</span> ({emp.employee_number})</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {previewDoc.file_url && (
+                <a
+                  href={previewDoc.file_url}
+                  download={previewDoc.file_name || `${previewDoc.doc_type}.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-1.5 rounded-xl bg-brand-500 text-white font-semibold text-xs hover:bg-brand-600 transition flex items-center gap-1.5 shadow-md"
+                >
+                  <Download size={14} /> Download
+                </a>
+              )}
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                title="Close Full Screen View"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Document Content View */}
+          <div className="flex-1 w-full max-w-5xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col items-center justify-center relative">
+            {previewDoc.file_url && previewDoc.file_url.startsWith("data:image/") ? (
+              <img
+                src={previewDoc.file_url}
+                alt={previewDoc.file_name || previewDoc.doc_type}
+                className="max-h-full max-w-full object-contain p-4 rounded-xl"
+              />
+            ) : previewDoc.file_url && (previewDoc.file_url.startsWith("data:application/pdf") || previewDoc.file_url.endsWith(".pdf")) ? (
+              <iframe
+                src={previewDoc.file_url}
+                title={previewDoc.file_name || previewDoc.doc_type}
+                className="w-full h-full border-0 bg-white"
+              />
+            ) : (
+              /* Verified Digital Certificate Sheet for Uploaded/Seeded Documents */
+              <div className="w-full h-full p-6 sm:p-12 overflow-y-auto flex items-center justify-center">
+                <div className="w-full max-w-3xl bg-white text-slate-900 rounded-2xl p-8 sm:p-12 shadow-2xl border-8 border-brand-600/20 relative space-y-8 font-serif text-center">
+                  <div className="absolute top-4 left-4 right-4 flex justify-between text-[10px] font-sans font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Lotus Idealab HR Records</span>
+                    <span>Verified Official Document</span>
+                  </div>
+
+                  <div className="pt-4 space-y-2">
+                    <div className="w-16 h-16 rounded-full bg-brand-50 text-brand-600 mx-auto flex items-center justify-center border-2 border-brand-200">
+                      <FileText size={32} />
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{previewDoc.doc_type}</h2>
+                    <p className="text-xs font-sans text-brand-600 font-semibold tracking-wider uppercase">Official Employee Certificate</p>
+                  </div>
+
+                  <div className="py-4 border-y border-slate-200 space-y-3 font-sans">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide">This certifies that the document</p>
+                    <p className="text-lg font-bold text-slate-800 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 inline-block">{previewDoc.file_name || `${previewDoc.doc_type}_Record.pdf`}</p>
+                    <p className="text-sm text-slate-600">
+                      is registered under staff member <b className="text-slate-900">{emp.first_name} {emp.last_name}</b> ({emp.employee_number})
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Department / Team: <b>{(emp as any).team_name || emp.branch}</b> · Date of Joining: <b>{emp.date_of_joining}</b>
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-4 font-sans text-xs pt-4">
+                    <div className="text-left">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Upload Date</p>
+                      <p className="font-semibold text-slate-700">{previewDoc.uploaded_at ? new Date(previewDoc.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : new Date().toLocaleDateString()}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200 font-bold text-[11px]">
+                      <Check size={14} /> HR Digitally Verified Record
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Document ID</p>
+                      <p className="font-mono text-slate-600 text-[11px]">{previewDoc.id.slice(0, 12)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -439,6 +439,7 @@ def run():
 
         db.add(models.SystemSetting(key="company_name", value="Idealab · UGC · Vizag"))
         db.add(models.SystemSetting(key="leave_policy_year", value=str(current_year)))
+        db.add(models.SystemSetting(key="allow_remote_checkin", value="false"))
         import json
         vizag_cfg = json.dumps({"name": "Lotus Vizag Office", "lat": 17.6829765, "lng": 83.1828647, "radius_meters": 100.0})
         db.add(models.SystemSetting(key="office_location_VIZAG", value=vizag_cfg))

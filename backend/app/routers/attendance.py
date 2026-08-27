@@ -7,6 +7,7 @@ from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.models import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_roles
 
@@ -88,8 +89,20 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
 def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float):
     # Check if global remote check-in / geofence bypass is enabled
     bypass_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
-    # Default to True unless explicitly disabled by setting allow_remote_checkin == "false"
-    allow_remote = bypass_setting.value != "false" if bypass_setting else True
+    global_remote = bypass_setting.value == "true" if bypass_setting else False
+
+    # Check if employee is explicitly permitted for WFH
+    is_wfh = getattr(employee, "is_wfh_allowed", False) if employee else False
+
+    # Check if employee has WFH attendance status today
+    today = date.today()
+    today_att = db.query(models.Attendance).filter(
+        models.Attendance.employee_id == employee.id,
+        models.Attendance.date == today
+    ).first() if employee else None
+    has_wfh_today = (today_att.status == models.AttendanceStatusEnum.WFH) if today_att else False
+
+    allow_remote = global_remote or is_wfh or has_wfh_today
 
     branch_val = "IDEALAB"
     if employee and employee.branch:
@@ -111,9 +124,19 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
         except Exception:
             pass
 
-    # If coordinates are not provided (0.0) or allow_remote is true, skip distance error
-    if (user_lat == 0.0 and user_lng == 0.0) or allow_remote:
+    # If remote check-in is allowed for this employee, skip distance check
+    if allow_remote:
         return office, 0.0
+
+    # If coordinates are not provided (0.0) and remote check-in is not allowed, reject
+    if user_lat == 0.0 and user_lng == 0.0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Location verification required! You are an office employee and must check in from office premises. "
+                "Please enable browser/device location services."
+            ),
+        )
 
     office_lat = float(office["lat"])
     office_lng = float(office["lng"])
@@ -127,8 +150,7 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
             status_code=400,
             detail=(
                 f"Location verification failed! You are {dist_str} away from {office['name']}. "
-                f"Check-in/out is allowed within {allowed_radius:.0f}m of office premises. "
-                f"(Click 'Set Current GPS as Office Location' or toggle Remote Check-In to allow location)."
+                f"Check-in/out is required within {allowed_radius:.0f}m of office premises for office staff."
             ),
         )
 
@@ -180,7 +202,11 @@ def get_today_status(
             pass
 
     remote_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
-    allow_remote = remote_setting.value != "false" if remote_setting else True
+    global_remote = remote_setting.value == "true" if remote_setting else False
+    is_wfh = getattr(emp, "is_wfh_allowed", False) if emp else False
+
+    has_wfh_today = (att.status == models.AttendanceStatusEnum.WFH) if att else False
+    allow_remote = global_remote or is_wfh or has_wfh_today
 
     return {
         "date": today.isoformat(),
@@ -188,7 +214,8 @@ def get_today_status(
         "branch": branch_val,
         "office_location": office,
         "allow_remote_checkin": allow_remote,
-        "attendance": schemas.AttendanceOut.from_orm(att) if att else None,
+        "is_wfh_allowed": is_wfh,
+        "attendance": schemas.AttendanceOut.model_validate(att) if att else None,
     }
 
 
@@ -434,7 +461,7 @@ def check_in(
     # Validate office location geofence
     office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
-    now = datetime.utcnow()
+    now = utc_now()
     is_late = now.hour > 9 or (now.hour == 9 and now.minute > 30)
 
     if existing:
@@ -489,7 +516,7 @@ def check_out(
     # Validate office location geofence
     office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
-    now = datetime.utcnow()
+    now = utc_now()
     att.check_out = now
     att.check_out_lat = user_lat
     att.check_out_lng = user_lng
@@ -502,6 +529,78 @@ def check_out(
     db.commit()
     db.refresh(att)
     log_audit(db, current_user, "CHECK_OUT", att.id, f"Checked out at {office['name']} ({dist:.0f}m away), Work Hours: {hours:.2f}h")
+    return att
+
+
+@router.patch("/{id}/time", response_model=schemas.AttendanceOut)
+def edit_attendance_time(
+    id: str,
+    payload: schemas.AttendanceTimeUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["HR"])),  # STRICTLY HR ONLY!
+):
+    """HR-only endpoint to manually update an employee's check-in / check-out times and status."""
+    att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+
+    rec_date = att.date
+
+    def parse_time_input(val: str, ref_date: date) -> Optional[datetime]:
+        if not val or not val.strip():
+            return None
+        val_str = val.strip()
+        if ":" in val_str and not ("T" in val_str or "-" in val_str):
+            parts = val_str.split(":")
+            h, m = int(parts[0]), int(parts[1])
+            s = int(parts[2]) if len(parts) > 2 else 0
+            return datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
+        try:
+            dt = datetime.fromisoformat(val_str.replace("Z", "+00:00"))
+            return dt.replace(tzinfo=None)
+        except Exception:
+            return None
+
+    if payload.check_in is not None:
+        if payload.check_in == "" or payload.check_in == "CLEAR":
+            att.check_in = None
+            att.is_late = False
+        else:
+            new_cin = parse_time_input(payload.check_in, rec_date)
+            if new_cin:
+                att.check_in = new_cin
+                att.is_late = new_cin.hour > 9 or (new_cin.hour == 9 and new_cin.minute > 30)
+
+    if payload.check_out is not None:
+        if payload.check_out == "" or payload.check_out == "CLEAR":
+            att.check_out = None
+            att.overtime_hours = 0.0
+            att.is_early_logout = False
+        else:
+            new_cout = parse_time_input(payload.check_out, rec_date)
+            if new_cout:
+                att.check_out = new_cout
+
+    if att.check_in and att.check_out:
+        hours = (att.check_out - att.check_in).total_seconds() / 3600.0
+        if hours > 9:
+            att.overtime_hours = round(hours - 9, 2)
+        else:
+            att.overtime_hours = 0.0
+        att.is_early_logout = hours < 8
+
+    if payload.status:
+        try:
+            att.status = models.AttendanceStatusEnum(payload.status)
+        except Exception:
+            pass
+
+    if payload.notes is not None:
+        att.notes = payload.notes
+
+    db.commit()
+    db.refresh(att)
+    log_audit(db, current_user, "EDIT_ATTENDANCE_TIME", str(att.id), f"HR updated timestamps for Emp {att.employee_id} on {att.date}")
     return att
 
 
@@ -618,7 +717,7 @@ def finalize_month(
     else:
         fin.is_finalized = not fin.is_finalized
         fin.finalized_by = current_user.id
-        fin.finalized_at = datetime.utcnow()
+        fin.finalized_at = utc_now()
 
     db.commit()
     log_audit(db, current_user, "FINALIZE", month, f"Attendance finalized: {fin.is_finalized} for {month}")

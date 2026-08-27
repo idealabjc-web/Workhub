@@ -30,6 +30,7 @@ interface TodayStatusData {
   branch: string;
   office_location: OfficeLocation;
   allow_remote_checkin?: boolean;
+  is_wfh_allowed?: boolean;
   attendance: TodayAttendance | null;
 }
 
@@ -110,7 +111,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
             if (fallbackErr.code === fallbackErr.PERMISSION_DENIED) {
               setGeoError("Location permission denied in browser settings.");
             } else {
-              setGeoError("GPS signal weak. Check-in is enabled via Remote Access.");
+              setGeoError(remoteAllowed ? "GPS signal weak. Check-in is enabled via Remote Access." : "GPS signal weak. Office location verification required.");
             }
           },
           { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
@@ -383,7 +384,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
           {remoteAllowed ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
-                <Globe size={13} /> Remote / Any Location Allowed
+                <Globe size={13} /> {data?.is_wfh_allowed ? "Remote Check-In Allowed (WFH Staff)" : "Remote / Any Location Allowed"}
               </span>
             </div>
           ) : geoError ? (

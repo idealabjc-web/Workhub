@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, Download, Upload, Plus, Check, X,
-  Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2
+  Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2, Clock
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -95,6 +95,7 @@ function formatLocalTime(dateStr?: string | null): string {
 export default function Attendance() {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
+  const isOnlyHR = user?.role === "HR";
 
   const [activeTab, setActiveTab] = useState<"personal" | "all_employees" | "pagara" | "corrections">("personal");
   const [viewMode, setViewMode] = useState<"day" | "month">("day");
@@ -110,6 +111,10 @@ export default function Attendance() {
   // Pagara Cell Editor Popover state
   const [editingCell, setEditingCell] = useState<{ empId: string; day: number; currentStatus: string } | null>(null);
 
+  // HR Time Edit Modal state
+  const [editingTimeRow, setEditingTimeRow] = useState<AttendanceRow | null>(null);
+  const [timeForm, setTimeForm] = useState({ check_in: "", check_out: "", status: "PRESENT", notes: "" });
+
   // Correction Request State
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
@@ -118,6 +123,41 @@ export default function Attendance() {
   // Excel Import Modal
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  const handleOpenTimeEdit = (r: AttendanceRow) => {
+    setEditingTimeRow(r);
+    const getHHMM = (dtStr?: string | null) => {
+      if (!dtStr) return "";
+      const hasTimezone = dtStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dtStr);
+      const d = new Date(hasTimezone ? dtStr : `${dtStr}Z`);
+      if (isNaN(d.getTime())) return "";
+      const h = String(d.getHours()).padStart(2, "0");
+      const m = String(d.getMinutes()).padStart(2, "0");
+      return `${h}:${m}`;
+    };
+    setTimeForm({
+      check_in: getHHMM(r.check_in),
+      check_out: getHHMM(r.check_out),
+      status: r.status || "PRESENT",
+      notes: r.notes || "",
+    });
+  };
+
+  const handleSaveTimeEdit = async () => {
+    if (!editingTimeRow) return;
+    try {
+      const res = await api.patch(`/api/attendance/${editingTimeRow.id}/time`, {
+        check_in: timeForm.check_in,
+        check_out: timeForm.check_out,
+        status: timeForm.status,
+        notes: timeForm.notes,
+      });
+      setRows((prev) => prev.map((row) => (row.id === editingTimeRow.id ? { ...row, ...res.data } : row)));
+      setEditingTimeRow(null);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to update attendance time");
+    }
+  };
 
   const loadEmployeesList = async () => {
     try {
@@ -754,13 +794,24 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
                         <td className="px-4 py-3.5 text-right">
                           {!isVirtual ? (
-                            <button
-                              onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                              title="Undo / Delete mistaken attendance entry"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              {isOnlyHR && (
+                                <button
+                                  onClick={() => handleOpenTimeEdit(r)}
+                                  className="p-1.5 rounded-lg text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition"
+                                  title="Edit check-in & check-out time (HR Only)"
+                                >
+                                  <Clock size={15} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                                title="Undo / Delete mistaken attendance entry"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">No entry</span>
                           )}
@@ -999,6 +1050,81 @@ export default function Attendance() {
 
             <div className="flex justify-end">
               <button onClick={() => setShowImportModal(false)} className="btn-secondary text-xs">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HR Edit Check-In / Check-Out Time Modal (Strictly HR Only) */}
+      {editingTimeRow && isOnlyHR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <Clock size={18} className="text-brand-500" /> Edit Check-In / Check-Out Time
+              </h3>
+              <button onClick={() => setEditingTimeRow(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-xs space-y-1">
+              <p className="font-semibold text-slate-800 dark:text-slate-200">{editingTimeRow.employee_name || "Staff Member"}</p>
+              <p className="text-slate-500">Date: {formatDateMDY(editingTimeRow.date)} ({formatDayName(editingTimeRow.date)})</p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Check-In Time</label>
+                <input
+                  type="time"
+                  className="input w-full text-sm"
+                  value={timeForm.check_in}
+                  onChange={(e) => setTimeForm({ ...timeForm, check_in: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Check-Out Time</label>
+                <input
+                  type="time"
+                  className="input w-full text-sm"
+                  value={timeForm.check_out}
+                  onChange={(e) => setTimeForm({ ...timeForm, check_out: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Attendance Status</label>
+                <select
+                  className="input w-full text-sm"
+                  value={timeForm.status}
+                  onChange={(e) => setTimeForm({ ...timeForm, status: e.target.value })}
+                >
+                  <option value="PRESENT">PRESENT</option>
+                  <option value="WFH">WFH (Work From Home)</option>
+                  <option value="HALF_DAY">HALF DAY</option>
+                  <option value="ABSENT">ABSENT</option>
+                  <option value="LEAVE">LEAVE</option>
+                  <option value="WEEK_OFF">WEEK OFF</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Notes / Reason for Correction</label>
+                <textarea
+                  className="input w-full text-xs"
+                  rows={2}
+                  placeholder="e.g. Corrected check-in time per HR approval"
+                  value={timeForm.notes}
+                  onChange={(e) => setTimeForm({ ...timeForm, notes: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={() => setEditingTimeRow(null)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleSaveTimeEdit} className="btn-primary text-xs">Save Changes</button>
             </div>
           </div>
         </div>

@@ -95,6 +95,7 @@ def create_employee(
         branch=payload.branch,
         employment_type=payload.employment_type,
         basic_salary=payload.basic_salary,
+        is_wfh_allowed=payload.is_wfh_allowed or False,
     )
     db.add(employee)
     db.commit()
@@ -316,6 +317,7 @@ def add_employee_document(
         employee_id=employee_id,
         doc_type=payload.doc_type,
         file_name=payload.file_name,
+        file_url=payload.file_url,
     )
     db.add(doc)
     db.commit()
