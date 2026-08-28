@@ -64,8 +64,46 @@ def init_db():
         try:
             with engine.begin() as conn:
                 conn.execute(text("INSERT INTO system_settings (id, key, value) SELECT 'remote_def_id', 'allow_remote_checkin', 'false' WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'allow_remote_checkin');"))
-        except Exception:
-            pass
+                
+                # 1. Update existing records for Sruthi Reddy, Safura Tahseen, and Sarva Srilaksmi to WFH allowed
+                conn.execute(text("""
+                    UPDATE employees 
+                    SET is_wfh_allowed = TRUE 
+                    WHERE LOWER(first_name) LIKE '%sruthi%' 
+                       OR LOWER(last_name) LIKE '%sruthi%' 
+                       OR LOWER(first_name) LIKE '%safura%' 
+                       OR LOWER(last_name) LIKE '%safura%' 
+                       OR LOWER(first_name) LIKE '%sarva%' 
+                       OR LOWER(last_name) LIKE '%sarva%'
+                       OR LOWER(first_name) LIKE '%srilaksmi%'
+                       OR LOWER(last_name) LIKE '%srilaksmi%'
+                       OR LOWER(first_name) LIKE '%tahseen%'
+                       OR LOWER(last_name) LIKE '%tahseen%';
+                """))
+
+                # 2. Ensure Sruthi Reddy, Safura Tahseen, and Sarva Srilaksmi records exist in database
+                wfh_staff = [
+                    ("sruthi.reddy@idealab.com", "Sruthi", "Reddy"),
+                    ("safura.tahseen@idealab.com", "Safura", "Tahseen"),
+                    ("sarva.srilaksmi@idealab.com", "Sarva", "Srilaksmi"),
+                ]
+                import uuid
+                from datetime import date
+                for email, fname, lname in wfh_staff:
+                    res = conn.execute(text("SELECT id FROM employees WHERE LOWER(first_name) = :fname OR LOWER(email) = :email;"), {"fname": fname.lower(), "email": email.lower()}).fetchone()
+                    if not res:
+                        emp_id = str(uuid.uuid4())
+                        emp_num = f"EMP{uuid.uuid4().hex[:4].upper()}"
+                        conn.execute(
+                            text("""
+                                INSERT INTO employees (id, employee_number, first_name, last_name, email, branch, status, employment_type, is_wfh_allowed, date_of_joining)
+                                VALUES (:id, :num, :fname, :lname, :email, 'IDEALAB', 'Active', 'Full-time', TRUE, :doj);
+                            """),
+                            {"id": emp_id, "num": emp_num, "fname": fname, "lname": lname, "email": email, "doj": date.today()}
+                        )
+                        conn.execute(text("UPDATE employees SET is_wfh_allowed = TRUE WHERE id = :id;"), {"id": emp_id})
+        except Exception as err_wfh:
+            print("WFH employee auto-setup note:", err_wfh)
     except Exception as e:
         print("Auto-migration note:", e)
 

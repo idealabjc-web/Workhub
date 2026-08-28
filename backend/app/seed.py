@@ -94,6 +94,9 @@ def run():
             ("Nisha",    "Kaur",       "UGC",     "Finance",         "Finance Analyst",    "FINANCE",  58000),
             ("Rahul",    "Sharma",     "IDEALAB", "Product",         "Business Analyst",   "EMPLOYEE", 55000),
             ("Sunita",   "Mishra",     "VIZAG",   "Operations",      "Procurement Exec",   "EMPLOYEE", 44000),
+            ("Sruthi",   "Reddy",      "IDEALAB", "Engineering",     "Software Engineer",  "EMPLOYEE", 65000),
+            ("Safura",   "Tahseen",    "IDEALAB", "Engineering",     "Software Engineer",  "EMPLOYEE", 65000),
+            ("Sarva",    "Srilaksmi",  "IDEALAB", "Engineering",     "Software Engineer",  "EMPLOYEE", 65000),
         ]
 
         all_employees = []
@@ -154,6 +157,8 @@ def run():
             email = f"{fname.lower()}.{lname.lower()}@hrportal.com"
             pw = f"{fname}123!"
             emp = make_user_emp(email, pw, role, fname, lname, branch, dept, designation, salary, len(demo_users) + idx)
+            if fname in ["Sruthi", "Safura", "Sarva"]:
+                emp.is_wfh_allowed = True
             all_employees.append(emp)
 
         db.commit()
