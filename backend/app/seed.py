@@ -158,7 +158,7 @@ def run():
             pw = f"{fname}123!"
             emp = make_user_emp(email, pw, role, fname, lname, branch, dept, designation, salary, len(demo_users) + idx)
             if fname in ["Sruthi", "Safura", "Sarva"]:
-                emp.is_wfh_allowed = True
+                setattr(emp, "is_wfh_allowed", True)
             all_employees.append(emp)
 
         db.commit()
