@@ -61,6 +61,11 @@ def init_db():
                         except Exception:
                             pass
         print("Auto-migration complete.")
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("INSERT INTO system_settings (id, key, value) SELECT 'remote_def_id', 'allow_remote_checkin', 'false' WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'allow_remote_checkin');"))
+        except Exception:
+            pass
     except Exception as e:
         print("Auto-migration note:", e)
 
