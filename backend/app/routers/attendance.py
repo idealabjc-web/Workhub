@@ -86,7 +86,15 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
     return emp
 
 
-def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float):
+def ensure_naive(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if getattr(dt, "tzinfo", None) is not None:
+        return dt.replace(tzinfo=None)
+    return dt
+
+
+def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float, is_checkout: bool = False):
     # Check if global remote check-in / geofence bypass is enabled
     bypass_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
     global_remote = bypass_setting.value == "true" if bypass_setting else False
@@ -123,6 +131,10 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
             office["radius_meters"] = float(cfg.get("radius_meters", office["radius_meters"]))
         except Exception:
             pass
+
+    # For check-out: if user has already checked in today or remote is allowed, bypass location check if GPS is not available (0.0, 0.0)
+    if is_checkout and (allow_remote or (today_att and today_att.check_in) or (user_lat == 0.0 and user_lng == 0.0)):
+        return office, 0.0
 
     # If remote check-in is allowed for this employee, skip distance check
     if allow_remote:
@@ -513,18 +525,25 @@ def check_out(
     user_lat = payload.latitude if payload.latitude is not None else 0.0
     user_lng = payload.longitude if payload.longitude is not None else 0.0
 
-    # Validate office location geofence
-    office, dist = validate_office_location(db, emp, user_lat, user_lng)
+    # Validate office location geofence for check-out
+    office, dist = validate_office_location(db, emp, user_lat, user_lng, is_checkout=True)
 
-    now = utc_now()
+    now = ensure_naive(utc_now())
+    cin = ensure_naive(att.check_in)
+
     att.check_out = now
     att.check_out_lat = user_lat
     att.check_out_lng = user_lng
 
-    hours = (now - att.check_in).total_seconds() / 3600.0
-    if hours > 9:
-        att.overtime_hours = round(hours - 9, 2)
-    att.is_early_logout = hours < 8
+    if cin:
+        hours = max(0.0, (now - cin).total_seconds() / 3600.0)
+        if hours > 9:
+            att.overtime_hours = round(hours - 9, 2)
+        else:
+            att.overtime_hours = 0.0
+        att.is_early_logout = hours < 8
+    else:
+        hours = 0.0
 
     db.commit()
     db.refresh(att)
@@ -582,7 +601,9 @@ def edit_attendance_time(
                 att.check_out = new_cout
 
     if att.check_in and att.check_out:
-        hours = (att.check_out - att.check_in).total_seconds() / 3600.0
+        cin = ensure_naive(att.check_in)
+        cout = ensure_naive(att.check_out)
+        hours = max(0.0, (cout - cin).total_seconds() / 3600.0) if (cin and cout) else 0.0
         if hours > 9:
             att.overtime_hours = round(hours - 9, 2)
         else:
