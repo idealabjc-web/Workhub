@@ -244,10 +244,7 @@ class AttendanceOut(BaseModel):
     def serialize_utc_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
         if dt is None:
             return None
-        iso = dt.isoformat()
-        if not iso.endswith("Z") and "+" not in iso:
-            iso += "Z"
-        return iso
+        return dt.isoformat()
 
     class Config:
         from_attributes = True

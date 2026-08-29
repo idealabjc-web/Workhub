@@ -85,17 +85,36 @@ function formatDayName(dateStr: string): string {
 
 function formatLocalTime(dateStr?: string | null): string {
   if (!dateStr) return "—";
+  if (dateStr.length === 5 && dateStr.includes(":")) {
+    const [hStr, mStr] = dateStr.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
   const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
-  const normalized = hasTimezone ? dateStr : `${dateStr}Z`;
-  const d = new Date(normalized);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  if (!hasTimezone && dateStr.includes("T")) {
+    const timePart = dateStr.split("T")[1];
+    if (timePart) {
+      const [hStr, mStr] = timePart.split(":");
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const ampm = h >= 12 ? "PM" : "AM";
+        const h12 = h % 12 || 12;
+        return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+      }
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 export default function Attendance() {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
-  const isOnlyHR = user?.role === "HR";
+  const canEditAttendance = user && ["SUPER_ADMIN", "HR", "MANAGER"].includes(user.role);
 
   const [activeTab, setActiveTab] = useState<"personal" | "all_employees" | "pagara" | "corrections">("personal");
   const [viewMode, setViewMode] = useState<"day" | "month">("day");
@@ -128,8 +147,13 @@ export default function Attendance() {
     setEditingTimeRow(r);
     const getHHMM = (dtStr?: string | null) => {
       if (!dtStr) return "";
+      if (dtStr.length === 5 && dtStr.includes(":")) return dtStr;
       const hasTimezone = dtStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dtStr);
-      const d = new Date(hasTimezone ? dtStr : `${dtStr}Z`);
+      if (!hasTimezone && dtStr.includes("T")) {
+        const timePart = dtStr.split("T")[1];
+        if (timePart) return timePart.slice(0, 5);
+      }
+      const d = new Date(dtStr);
       if (isNaN(d.getTime())) return "";
       const h = String(d.getHours()).padStart(2, "0");
       const m = String(d.getMinutes()).padStart(2, "0");
@@ -154,6 +178,11 @@ export default function Attendance() {
       });
       setRows((prev) => prev.map((row) => (row.id === editingTimeRow.id ? { ...row, ...res.data } : row)));
       setEditingTimeRow(null);
+      if (activeTab === "personal") loadPersonal();
+      else if (activeTab === "all_employees") {
+        if (viewMode === "day") loadDayAttendance();
+        else loadAllAttendance();
+      }
     } catch (err: any) {
       alert(err.response?.data?.detail || "Failed to update attendance time");
     }
@@ -795,11 +824,11 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 text-right">
                           {!isVirtual ? (
                             <div className="flex items-center justify-end gap-1">
-                              {isOnlyHR && (
+                              {canEditAttendance && (
                                 <button
                                   onClick={() => handleOpenTimeEdit(r)}
                                   className="p-1.5 rounded-lg text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition"
-                                  title="Edit check-in & check-out time (HR Only)"
+                                  title="Edit check-in & check-out time"
                                 >
                                   <Clock size={15} />
                                 </button>
@@ -1055,8 +1084,8 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* HR Edit Check-In / Check-Out Time Modal (Strictly HR Only) */}
-      {editingTimeRow && isOnlyHR && (
+      {/* HR Edit Check-In / Check-Out Time Modal */}
+      {editingTimeRow && canEditAttendance && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-md p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">

@@ -473,7 +473,7 @@ def check_in(
     # Validate office location geofence
     office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
-    now = utc_now()
+    now = datetime.now()
     is_late = now.hour > 9 or (now.hour == 9 and now.minute > 30)
 
     if existing:
@@ -528,7 +528,7 @@ def check_out(
     # Validate office location geofence for check-out
     office, dist = validate_office_location(db, emp, user_lat, user_lng, is_checkout=True)
 
-    now = ensure_naive(utc_now())
+    now = datetime.now()
     cin = ensure_naive(att.check_in)
 
     att.check_out = now
@@ -556,9 +556,9 @@ def edit_attendance_time(
     id: str,
     payload: schemas.AttendanceTimeUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_roles(["HR"])),  # STRICTLY HR ONLY!
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
 ):
-    """HR-only endpoint to manually update an employee's check-in / check-out times and status."""
+    """Endpoint to manually update an employee's check-in / check-out times and status."""
     att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
     if not att:
         raise HTTPException(status_code=404, detail="Attendance record not found")
@@ -575,7 +575,10 @@ def edit_attendance_time(
             s = int(parts[2]) if len(parts) > 2 else 0
             return datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
         try:
-            dt = datetime.fromisoformat(val_str.replace("Z", "+00:00"))
+            val_clean = val_str.replace("Z", "")
+            if "+" in val_clean:
+                val_clean = val_clean.split("+")[0]
+            dt = datetime.fromisoformat(val_clean)
             return dt.replace(tzinfo=None)
         except Exception:
             return None

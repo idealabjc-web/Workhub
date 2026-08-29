@@ -37,14 +37,42 @@ interface TodayStatusData {
 function parseUtcDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
   const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
-  const normalized = hasTimezone ? dateStr : `${dateStr}Z`;
-  const d = new Date(normalized);
+  if (!hasTimezone && dateStr.includes("T")) {
+    const [dPart, tPart] = dateStr.split("T");
+    const [yr, mo, dy] = dPart.split("-").map(Number);
+    const [h, m, s] = tPart.split(":").map(x => parseInt(x, 10));
+    return new Date(yr, mo - 1, dy, h || 0, m || 0, s || 0);
+  }
+  const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 }
 
 function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
-  const d = parseUtcDate(dateStr);
-  return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : fallback;
+  if (!dateStr) return fallback;
+  if (dateStr.length === 5 && dateStr.includes(":")) {
+    const [hStr, mStr] = dateStr.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
+  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
+  if (!hasTimezone && dateStr.includes("T")) {
+    const timePart = dateStr.split("T")[1];
+    if (timePart) {
+      const [hStr, mStr] = timePart.split(":");
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const ampm = h >= 12 ? "PM" : "AM";
+        const h12 = h % 12 || 12;
+        return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+      }
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? fallback : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
