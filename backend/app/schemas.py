@@ -215,9 +215,21 @@ class AttendanceCellUpdate(BaseModel):
 
 
 class AttendanceTimeUpdate(BaseModel):
+    employee_id: Optional[str] = None
+    date: Optional[datetime.date] = None
     check_in: Optional[str] = None  # HH:MM or ISO timestamp
     check_out: Optional[str] = None  # HH:MM or ISO timestamp
     status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class AttendanceBulkTimeUpdate(BaseModel):
+    date: datetime.date
+    employee_ids: Optional[List[str]] = None
+    branch: Optional[str] = None
+    check_in: Optional[str] = None  # HH:MM e.g. "09:30"
+    check_out: Optional[str] = None  # HH:MM e.g. "18:30"
+    status: Optional[str] = "PRESENT"
     notes: Optional[str] = None
 
 
@@ -244,7 +256,11 @@ class AttendanceOut(BaseModel):
     def serialize_utc_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
         if dt is None:
             return None
-        return dt.isoformat()
+        iso = dt.isoformat()
+        if not iso.endswith("Z") and "+" not in iso:
+            return iso + "Z"
+        return iso
+
 
     class Config:
         from_attributes = True

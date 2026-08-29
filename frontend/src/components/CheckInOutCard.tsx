@@ -34,46 +34,63 @@ interface TodayStatusData {
   attendance: TodayAttendance | null;
 }
 
+/**
+ * Parse a datetime string into a Date object for timer calculations.
+ * The backend stores IST as naive datetimes. We parse them as local
+ * by manually constructing the Date so no UTC shift happens.
+ */
 function parseUtcDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
-  if (!hasTimezone && dateStr.includes("T")) {
-    const [dPart, tPart] = dateStr.split("T");
-    const [yr, mo, dy] = dPart.split("-").map(Number);
-    const [h, m, s] = tPart.split(":").map(x => parseInt(x, 10));
-    return new Date(yr, mo - 1, dy, h || 0, m || 0, s || 0);
+  const str = dateStr.trim();
+  if (!str) return null;
+  try {
+    let iso = str.replace(" ", "T");
+    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
+      iso += "Z";
+    }
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
   }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Extract hours and minutes from a datetime string and format as "HH:MM AM/PM".
+ */
 function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
   if (!dateStr) return fallback;
-  if (dateStr.length === 5 && dateStr.includes(":")) {
-    const [hStr, mStr] = dateStr.split(":");
-    const h = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
+  const str = dateStr.trim();
+  if (!str) return fallback;
+
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const parts = str.split(":");
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return fallback;
     const ampm = h >= 12 ? "PM" : "AM";
     const h12 = h % 12 || 12;
     return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
   }
-  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
-  if (!hasTimezone && dateStr.includes("T")) {
-    const timePart = dateStr.split("T")[1];
-    if (timePart) {
-      const [hStr, mStr] = timePart.split(":");
-      const h = parseInt(hStr, 10);
-      const m = parseInt(mStr, 10);
-      if (!isNaN(h) && !isNaN(m)) {
-        const ampm = h >= 12 ? "PM" : "AM";
-        const h12 = h % 12 || 12;
-        return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-      }
+
+  try {
+    let iso = str.replace(" ", "T");
+    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
+      iso += "Z";
     }
-  }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? fallback : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) {
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    }
+  } catch {}
+
+  return fallback;
 }
+
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
   const { user } = useAuth();

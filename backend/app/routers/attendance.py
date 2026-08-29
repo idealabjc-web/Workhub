@@ -1,5 +1,5 @@
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,11 +7,17 @@ from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.models import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
+
+# Indian Standard Time (UTC+5:30) — ensures correct time regardless of server timezone
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def ist_now() -> datetime:
+    """Return current time in IST as a naive datetime (no tzinfo)."""
+    return datetime.now(IST).replace(tzinfo=None)
 
 # Default Office Locations (Branch -> {name, lat, lng, radius_meters})
 OFFICE_LOCATIONS = {
@@ -473,7 +479,7 @@ def check_in(
     # Validate office location geofence
     office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
-    now = datetime.now()
+    now = ist_now()
     is_late = now.hour > 9 or (now.hour == 9 and now.minute > 30)
 
     if existing:
@@ -528,7 +534,7 @@ def check_out(
     # Validate office location geofence for check-out
     office, dist = validate_office_location(db, emp, user_lat, user_lng, is_checkout=True)
 
-    now = datetime.now()
+    now = ist_now()
     cin = ensure_naive(att.check_in)
 
     att.check_out = now
@@ -558,12 +564,48 @@ def edit_attendance_time(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
 ):
-    """Endpoint to manually update an employee's check-in / check-out times and status."""
-    att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
+    """Endpoint to manually update or create an employee's check-in / check-out times and status."""
+    att = None
+    if id and not id.startswith("virtual-") and id != "upsert":
+        att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
+
+    # Fallback to employee_id and date if not found by primary key or if virtual ID
+    if not att and payload.employee_id and payload.date:
+        att = db.query(models.Attendance).filter(
+            models.Attendance.employee_id == payload.employee_id,
+            models.Attendance.date == payload.date,
+        ).first()
+
+    # If still not found and we have employee_id & date, create a new record
     if not att:
-        raise HTTPException(status_code=404, detail="Attendance record not found")
+        emp_id = payload.employee_id or (id.replace("virtual-", "") if id.startswith("virtual-") else None)
+        rec_date = payload.date or date.today()
+        if not emp_id:
+            raise HTTPException(status_code=404, detail="Attendance record not found and employee ID not provided")
+        
+        # Verify employee exists
+        emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail="Employee not found")
+
+        att = models.Attendance(
+            employee_id=emp_id,
+            date=rec_date,
+            status=models.AttendanceStatusEnum.PRESENT,
+        )
+        db.add(att)
+        db.flush()
 
     rec_date = att.date
+
+    # Validate monthly lock
+    month_str = rec_date.strftime("%Y-%m")
+    fin = db.query(models.MonthlyAttendanceStatus).filter(
+        models.MonthlyAttendanceStatus.month == month_str,
+        models.MonthlyAttendanceStatus.is_finalized == True,
+    ).first()
+    if fin:
+        raise HTTPException(status_code=400, detail=f"Attendance for {month_str} is finalized and locked")
 
     def parse_time_input(val: str, ref_date: date) -> Optional[datetime]:
         if not val or not val.strip():
@@ -573,7 +615,9 @@ def edit_attendance_time(
             parts = val_str.split(":")
             h, m = int(parts[0]), int(parts[1])
             s = int(parts[2]) if len(parts) > 2 else 0
-            return datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
+            # Convert user local IST time (UTC+5:30) to standard UTC naive datetime
+            local_dt = datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
+            return local_dt - timedelta(hours=5, minutes=30)
         try:
             val_clean = val_str.replace("Z", "")
             if "+" in val_clean:
@@ -591,7 +635,8 @@ def edit_attendance_time(
             new_cin = parse_time_input(payload.check_in, rec_date)
             if new_cin:
                 att.check_in = new_cin
-                att.is_late = new_cin.hour > 9 or (new_cin.hour == 9 and new_cin.minute > 30)
+                ist_cin = new_cin + timedelta(hours=5, minutes=30)
+                att.is_late = ist_cin.hour > 9 or (ist_cin.hour == 9 and ist_cin.minute > 30)
 
     if payload.check_out is not None:
         if payload.check_out == "" or payload.check_out == "CLEAR":
@@ -603,6 +648,7 @@ def edit_attendance_time(
             if new_cout:
                 att.check_out = new_cout
 
+
     if att.check_in and att.check_out:
         cin = ensure_naive(att.check_in)
         cout = ensure_naive(att.check_out)
@@ -612,6 +658,9 @@ def edit_attendance_time(
         else:
             att.overtime_hours = 0.0
         att.is_early_logout = hours < 8
+    else:
+        att.overtime_hours = 0.0
+        att.is_early_logout = False
 
     if payload.status:
         try:
@@ -624,11 +673,128 @@ def edit_attendance_time(
 
     db.commit()
     db.refresh(att)
+    if att.employee:
+        att.employee_name = f"{att.employee.first_name} {att.employee.last_name}".strip()
+        att.employee_number = att.employee.employee_number
+        att.branch = att.employee.branch.value if hasattr(att.employee.branch, "value") else str(att.employee.branch)
     log_audit(db, current_user, "EDIT_ATTENDANCE_TIME", str(att.id), f"HR updated timestamps for Emp {att.employee_id} on {att.date}")
     return att
 
 
+@router.post("/bulk-time")
+def bulk_update_attendance_time(
+    payload: schemas.AttendanceBulkTimeUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+):
+    """Bulk update check-in & check-out time for all or selected employees on a specific date."""
+    rec_date = payload.date
+    month_str = rec_date.strftime("%Y-%m")
+    fin = db.query(models.MonthlyAttendanceStatus).filter(
+        models.MonthlyAttendanceStatus.month == month_str,
+        models.MonthlyAttendanceStatus.is_finalized == True,
+    ).first()
+    if fin:
+        raise HTTPException(status_code=400, detail=f"Attendance for {month_str} is finalized and locked")
+
+    def parse_time_input(val: str, ref_date: date) -> Optional[datetime]:
+        if not val or not val.strip():
+            return None
+        val_str = val.strip()
+        if ":" in val_str and not ("T" in val_str or "-" in val_str):
+            parts = val_str.split(":")
+            h, m = int(parts[0]), int(parts[1])
+            s = int(parts[2]) if len(parts) > 2 else 0
+            local_dt = datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
+            return local_dt - timedelta(hours=5, minutes=30)
+        try:
+            val_clean = val_str.replace("Z", "")
+            if "+" in val_clean:
+                val_clean = val_clean.split("+")[0]
+            dt = datetime.fromisoformat(val_clean)
+            return dt.replace(tzinfo=None)
+        except Exception:
+            return None
+
+    emp_query = db.query(models.Employee).filter(models.Employee.status == models.EmployeeStatusEnum.ACTIVE)
+    if payload.employee_ids and len(payload.employee_ids) > 0:
+        emp_query = emp_query.filter(models.Employee.id.in_(payload.employee_ids))
+    elif payload.branch:
+        emp_query = emp_query.filter(models.Employee.branch == payload.branch)
+
+    employees = emp_query.all()
+    if not employees:
+        raise HTTPException(status_code=404, detail="No active employees found matching the criteria")
+
+    cin_dt = parse_time_input(payload.check_in, rec_date) if payload.check_in and payload.check_in not in ["", "CLEAR"] else None
+    cout_dt = parse_time_input(payload.check_out, rec_date) if payload.check_out and payload.check_out not in ["", "CLEAR"] else None
+    status_enum = models.AttendanceStatusEnum(payload.status) if payload.status and payload.status in models.AttendanceStatusEnum.__members__ else models.AttendanceStatusEnum.PRESENT
+
+    updated_count = 0
+    for emp in employees:
+        att = db.query(models.Attendance).filter(
+            models.Attendance.employee_id == emp.id,
+            models.Attendance.date == rec_date,
+        ).first()
+
+        if not att:
+            att = models.Attendance(
+                employee_id=emp.id,
+                date=rec_date,
+                status=status_enum,
+            )
+            db.add(att)
+            db.flush()
+
+        if payload.status:
+            att.status = status_enum
+
+        if payload.check_in is not None:
+            if payload.check_in in ["", "CLEAR"]:
+                att.check_in = None
+                att.is_late = False
+            else:
+                att.check_in = cin_dt
+                if cin_dt:
+                    ist_cin = cin_dt + timedelta(hours=5, minutes=30)
+                    att.is_late = ist_cin.hour > 9 or (ist_cin.hour == 9 and ist_cin.minute > 30)
+                else:
+                    att.is_late = False
+
+
+        if payload.check_out is not None:
+            if payload.check_out in ["", "CLEAR"]:
+                att.check_out = None
+                att.overtime_hours = 0.0
+                att.is_early_logout = False
+            else:
+                att.check_out = cout_dt
+
+        if att.check_in and att.check_out:
+            cin = ensure_naive(att.check_in)
+            cout = ensure_naive(att.check_out)
+            hours = max(0.0, (cout - cin).total_seconds() / 3600.0) if (cin and cout) else 0.0
+            if hours > 9:
+                att.overtime_hours = round(hours - 9, 2)
+            else:
+                att.overtime_hours = 0.0
+            att.is_early_logout = hours < 8
+        else:
+            att.overtime_hours = 0.0
+            att.is_early_logout = False
+
+        if payload.notes is not None:
+            att.notes = payload.notes
+
+        updated_count += 1
+
+    db.commit()
+    log_audit(db, current_user, "BULK_EDIT_TIME", f"Count:{updated_count}", f"HR bulk updated timestamps for {updated_count} employees on {rec_date}")
+    return {"message": f"Successfully updated attendance time for {updated_count} employees", "count": updated_count}
+
+
 @router.get("/monthly-summary")
+
 def monthly_summary(
     month: str,  # YYYY-MM
     branch: Optional[str] = None,
@@ -741,7 +907,7 @@ def finalize_month(
     else:
         fin.is_finalized = not fin.is_finalized
         fin.finalized_by = current_user.id
-        fin.finalized_at = utc_now()
+        fin.finalized_at = models.utc_now()
 
     db.commit()
     log_audit(db, current_user, "FINALIZE", month, f"Attendance finalized: {fin.is_finalized} for {month}")

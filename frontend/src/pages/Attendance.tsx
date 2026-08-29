@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, Download, Upload, Plus, Check, X,
-  Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2, Clock
+  Lock, Unlock, FileSpreadsheet, Search, RotateCcw, Trash2, Clock, CheckCircle
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -83,33 +83,44 @@ function formatDayName(dateStr: string): string {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { weekday: "short" });
 }
 
+/**
+ * Format timestamp into local "HH:MM AM/PM".
+ * Accurately parses UTC ISO timestamps from backend into local time (IST).
+ */
 function formatLocalTime(dateStr?: string | null): string {
   if (!dateStr) return "—";
-  if (dateStr.length === 5 && dateStr.includes(":")) {
-    const [hStr, mStr] = dateStr.split(":");
-    const h = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
+  const str = dateStr.trim();
+  if (!str) return "—";
+
+  // Bare time format: "09:30" or "09:30:00"
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const parts = str.split(":");
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return "—";
     const ampm = h >= 12 ? "PM" : "AM";
     const h12 = h % 12 || 12;
     return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
   }
-  const hasTimezone = dateStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateStr);
-  if (!hasTimezone && dateStr.includes("T")) {
-    const timePart = dateStr.split("T")[1];
-    if (timePart) {
-      const [hStr, mStr] = timePart.split(":");
-      const h = parseInt(hStr, 10);
-      const m = parseInt(mStr, 10);
-      if (!isNaN(h) && !isNaN(m)) {
-        const ampm = h >= 12 ? "PM" : "AM";
-        const h12 = h % 12 || 12;
-        return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-      }
+
+  try {
+    let iso = str.replace(" ", "T");
+    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
+      iso += "Z";
     }
-  }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) {
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    }
+  } catch {}
+
+  return "—";
 }
+
 
 export default function Attendance() {
   const { user } = useAuth();
@@ -143,22 +154,69 @@ export default function Attendance() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  // Bulk Time Change Modal
+  const [showBulkTimeModal, setShowBulkTimeModal] = useState(false);
+  const [bulkTimeForm, setBulkTimeForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    branch: "",
+    check_in: "09:30",
+    check_out: "18:30",
+    status: "PRESENT",
+    notes: "Office standard timings updated by HR",
+  });
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const handleApplyBulkTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBulkLoading(true);
+    try {
+      const res = await api.post("/api/attendance/bulk-time", {
+        date: bulkTimeForm.date,
+        branch: bulkTimeForm.branch || undefined,
+        check_in: bulkTimeForm.check_in,
+        check_out: bulkTimeForm.check_out,
+        status: bulkTimeForm.status,
+        notes: bulkTimeForm.notes,
+      });
+      alert(res.data.message || "Attendance timestamps successfully updated for all employees!");
+      setShowBulkTimeModal(false);
+      if (viewMode === "day") {
+        setSelectedDate(bulkTimeForm.date);
+        loadDayAttendance();
+      } else {
+        loadAllAttendance();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to bulk update attendance time");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const handleOpenTimeEdit = (r: AttendanceRow) => {
     setEditingTimeRow(r);
+    /**
+     * Extract HH:MM from a datetime string directly (no Date constructor).
+     */
     const getHHMM = (dtStr?: string | null) => {
       if (!dtStr) return "";
-      if (dtStr.length === 5 && dtStr.includes(":")) return dtStr;
-      const hasTimezone = dtStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dtStr);
-      if (!hasTimezone && dtStr.includes("T")) {
-        const timePart = dtStr.split("T")[1];
-        if (timePart) return timePart.slice(0, 5);
-      }
-      const d = new Date(dtStr);
-      if (isNaN(d.getTime())) return "";
-      const h = String(d.getHours()).padStart(2, "0");
-      const m = String(d.getMinutes()).padStart(2, "0");
-      return `${h}:${m}`;
+      const str = dtStr.trim();
+      if (/^\d{1,2}:\d{2}$/.test(str)) return str;
+      try {
+        let iso = str.replace(" ", "T");
+        if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
+          iso += "Z";
+        }
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+          const h = String(d.getHours()).padStart(2, "0");
+          const m = String(d.getMinutes()).padStart(2, "0");
+          return `${h}:${m}`;
+        }
+      } catch {}
+      return "";
     };
+
     setTimeForm({
       check_in: getHHMM(r.check_in),
       check_out: getHHMM(r.check_out),
@@ -171,17 +229,31 @@ export default function Attendance() {
     if (!editingTimeRow) return;
     try {
       const res = await api.patch(`/api/attendance/${editingTimeRow.id}/time`, {
+        employee_id: editingTimeRow.employee_id,
+        date: editingTimeRow.date,
         check_in: timeForm.check_in,
         check_out: timeForm.check_out,
         status: timeForm.status,
         notes: timeForm.notes,
       });
-      setRows((prev) => prev.map((row) => (row.id === editingTimeRow.id ? { ...row, ...res.data } : row)));
+      setRows((prev) => {
+        const matchIdx = prev.findIndex(
+          (row) => row.id === editingTimeRow.id || row.id === res.data.id || (row.employee_id === res.data.employee_id && row.date === res.data.date)
+        );
+        if (matchIdx >= 0) {
+          const next = [...prev];
+          next[matchIdx] = { ...next[matchIdx], ...res.data };
+          return next;
+        }
+        return [res.data, ...prev];
+      });
       setEditingTimeRow(null);
       if (activeTab === "personal") loadPersonal();
       else if (activeTab === "all_employees") {
         if (viewMode === "day") loadDayAttendance();
         else loadAllAttendance();
+      } else if (activeTab === "pagara") {
+        loadMonthlyGrid();
       }
     } catch (err: any) {
       alert(err.response?.data?.detail || "Failed to update attendance time");
@@ -541,6 +613,22 @@ export default function Attendance() {
 
           {isHR && (
             <>
+              {activeTab === "all_employees" && (
+                <button
+                  onClick={() => {
+                    setBulkTimeForm((prev) => ({
+                      ...prev,
+                      date: viewMode === "day" ? selectedDate : new Date().toISOString().slice(0, 10),
+                      branch: branchFilter || "",
+                    }));
+                    setShowBulkTimeModal(true);
+                  }}
+                  className="btn-primary gap-1.5 text-xs py-1.5 bg-brand-600 hover:bg-brand-700 text-white shadow-xs"
+                  title="Change check-in & check-out time for all employees at once"
+                >
+                  <Clock size={14} /> Bulk Change Time
+                </button>
+              )}
               <button onClick={() => setShowImportModal(true)} className="btn-secondary gap-1.5 text-xs py-1.5">
                 <Upload size={14} /> Import Excel
               </button>
@@ -556,6 +644,7 @@ export default function Attendance() {
               )}
             </>
           )}
+
 
           {!isHR && (
             <button onClick={() => setShowCorrectionModal(true)} className="btn-primary gap-1.5 text-xs py-1.5">
@@ -750,6 +839,7 @@ export default function Attendance() {
                   <th className="px-4 py-3">CHECK IN</th>
                   <th className="px-4 py-3">CHECK OUT</th>
                   <th className="px-4 py-3">NOTES</th>
+                  {canEditAttendance && <th className="px-4 py-3 text-right">ACTION</th>}
                 </tr>
               </thead>
               <tbody>
@@ -767,11 +857,22 @@ export default function Attendance() {
                       <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
                       <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
                       <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
+                      {canEditAttendance && (
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            onClick={() => handleOpenTimeEdit(r)}
+                            className="p-1.5 rounded-lg text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition"
+                            title="Edit check-in & check-out time"
+                          >
+                            <Clock size={15} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No attendance records for {month}</td></tr>
+                  <tr><td colSpan={canEditAttendance ? 7 : 6} className="px-4 py-10 text-center text-slate-400">No attendance records for {month}</td></tr>
                 )}
               </tbody>
             </table>
@@ -822,17 +923,17 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
                         <td className="px-4 py-3.5 text-slate-400">{r.notes || "—"}</td>
                         <td className="px-4 py-3.5 text-right">
-                          {!isVirtual ? (
-                            <div className="flex items-center justify-end gap-1">
-                              {canEditAttendance && (
-                                <button
-                                  onClick={() => handleOpenTimeEdit(r)}
-                                  className="p-1.5 rounded-lg text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition"
-                                  title="Edit check-in & check-out time"
-                                >
-                                  <Clock size={15} />
-                                </button>
-                              )}
+                          <div className="flex items-center justify-end gap-1">
+                            {canEditAttendance && (
+                              <button
+                                onClick={() => handleOpenTimeEdit(r)}
+                                className="p-1.5 rounded-lg text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition"
+                                title={isVirtual ? "Set check-in & check-out time" : "Edit check-in & check-out time"}
+                              >
+                                <Clock size={15} />
+                              </button>
+                            )}
+                            {!isVirtual && (
                               <button
                                 onClick={() => handleDeleteRow(r.id, r.employee_name, r.date)}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
@@ -840,10 +941,8 @@ export default function Attendance() {
                               >
                                 <Trash2 size={15} />
                               </button>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">No entry</span>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1158,6 +1257,132 @@ export default function Attendance() {
           </div>
         </div>
       )}
+
+      {/* Bulk Change Attendance Time Modal for All Employees */}
+      {showBulkTimeModal && isHR && (
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <Clock size={18} className="text-brand-500" /> Bulk Change Time for Employees
+              </h3>
+              <button onClick={() => setShowBulkTimeModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyBulkTime} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-brand-50/60 dark:bg-brand-950/30 rounded-xl text-xs space-y-1 text-slate-700 dark:text-slate-300 border border-brand-100 dark:border-brand-900/50">
+                <p className="font-semibold text-brand-700 dark:text-brand-300 flex items-center gap-1.5">
+                  <CheckCircle size={14} /> Apply to All Active Staff
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  This will set the check-in, check-out, and attendance status for all employees for the selected date.
+                </p>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Target Date</label>
+                <input
+                  type="date"
+                  required
+                  className="input w-full text-sm font-medium"
+                  value={bulkTimeForm.date}
+                  onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, date: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Branch Scope</label>
+                <select
+                  className="input w-full text-sm"
+                  value={bulkTimeForm.branch}
+                  onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, branch: e.target.value })}
+                >
+                  <option value="">All Branches</option>
+                  <option value="IDEALAB">Lotus Idealab Campus</option>
+                  <option value="UGC">Lotus UGC Office</option>
+                  <option value="VIZAG">Lotus Vizag Office</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Check-In Time</label>
+                  <input
+                    type="time"
+                    className="input w-full text-sm"
+                    value={bulkTimeForm.check_in}
+                    onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, check_in: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Check-Out Time</label>
+                  <input
+                    type="time"
+                    className="input w-full text-sm"
+                    value={bulkTimeForm.check_out}
+                    onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, check_out: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Attendance Status</label>
+                <select
+                  className="input w-full text-sm"
+                  value={bulkTimeForm.status}
+                  onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, status: e.target.value })}
+                >
+                  <option value="PRESENT">PRESENT</option>
+                  <option value="WFH">WFH (Work From Home)</option>
+                  <option value="HALF_DAY">HALF DAY</option>
+                  <option value="WEEK_OFF">WEEK OFF</option>
+                  <option value="ABSENT">ABSENT</option>
+                  <option value="LEAVE">LEAVE</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Audit Notes</label>
+                <input
+                  type="text"
+                  className="input w-full text-xs"
+                  placeholder="e.g. Standard office timings applied by HR"
+                  value={bulkTimeForm.notes}
+                  onChange={(e) => setBulkTimeForm({ ...bulkTimeForm, notes: e.target.value })}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => setShowBulkTimeModal(false)}
+                  className="btn-secondary text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkLoading}
+                  className="btn-primary text-xs bg-brand-600 hover:bg-brand-700 text-white flex items-center gap-1.5"
+                >
+                  {bulkLoading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <CheckCircle size={14} />
+                  )}
+                  {bulkLoading ? "Updating All..." : "Apply to All Employees"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

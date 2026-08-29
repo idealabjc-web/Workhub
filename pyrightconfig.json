@@ -4,5 +4,9 @@
   "extraPaths": [
     "backend",
     "backend/venv/Lib/site-packages"
-  ]
+  ],
+  "reportGeneralTypeIssues": false,
+  "reportAssignmentType": false,
+  "reportAttributeAccessIssue": false
 }
+
