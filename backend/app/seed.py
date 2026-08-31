@@ -202,15 +202,25 @@ def run():
                     continue
 
                 status = rng.choice(statuses)
-                check_in = datetime.combine(d, datetime.min.time()) + timedelta(hours=9, minutes=rng.randint(0, 45))
-                check_out = check_in + timedelta(hours=rng.randint(7, 10), minutes=rng.randint(0, 59))
+                if status in [models.AttendanceStatusEnum.PRESENT, models.AttendanceStatusEnum.WFH]:
+                    check_in = datetime.combine(d, datetime.min.time()) + timedelta(hours=9, minutes=30)
+                    check_out = datetime.combine(d, datetime.min.time()) + timedelta(hours=18, minutes=30)
+                elif status == models.AttendanceStatusEnum.HALF_DAY:
+                    check_in = datetime.combine(d, datetime.min.time()) + timedelta(hours=9, minutes=30)
+                    check_out = datetime.combine(d, datetime.min.time()) + timedelta(hours=13, minutes=30)
+                else:
+                    check_in = None
+                    check_out = None
+
                 db.add(models.Attendance(
                     employee_id=emp.id,
                     date=d,
-                    check_in=check_in if status not in [models.AttendanceStatusEnum.ABSENT, models.AttendanceStatusEnum.LEAVE] else None,
-                    check_out=check_out if status not in [models.AttendanceStatusEnum.ABSENT, models.AttendanceStatusEnum.LEAVE] else None,
+                    check_in=check_in,
+                    check_out=check_out,
                     status=status,
-                    is_late=check_in.hour > 9 if check_in else False,
+                    is_late=False,
+                    overtime_hours=0.0,
+                    is_early_logout=False,
                 ))
         db.commit()
 
