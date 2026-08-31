@@ -67,18 +67,14 @@ def update_leave_status(
     if payload.comments:
         leave.comments = payload.comments
 
-    # Update leave balance when approved
-    if payload.status == "APPROVED":
-        days = (leave.end_date - leave.start_date).days + 1
-        balance = db.query(models.LeaveBalance).filter(
-            models.LeaveBalance.employee_id == leave.employee_id,
-            models.LeaveBalance.leave_type == leave.leave_type,
-        ).first()
-        if balance:
-            balance.used += days
-
     db.commit()
     db.refresh(leave)
+
+    # Sync and recalculate leave balances whenever status changes
+    emp = db.query(models.Employee).filter(models.Employee.id == leave.employee_id).first()
+    if emp:
+        sync_employee_leave_balances(db, emp)
+
     return leave
 
 
@@ -113,8 +109,12 @@ def update_leave(
 
     db.commit()
     db.refresh(leave)
-    return leave
 
+    emp = db.query(models.Employee).filter(models.Employee.id == leave.employee_id).first()
+    if emp:
+        sync_employee_leave_balances(db, emp)
+
+    return leave
 
 
 def get_annual_leaves_by_gender(gender: Optional[str]) -> int:
@@ -128,21 +128,40 @@ def sync_employee_leave_balances(db: Session, employee: models.Employee):
     gender_str = str(employee.gender) if employee.gender is not None else None
     quota = get_annual_leaves_by_gender(gender_str)
 
+    # Fetch all approved leaves for this employee
+    approved_leaves = (
+        db.query(models.Leave)
+        .filter(
+            models.Leave.employee_id == employee.id,
+            models.Leave.status == models.LeaveStatusEnum.APPROVED,
+        )
+        .all()
+    )
+
     for lt in models.LeaveTypeEnum:
         balance = db.query(models.LeaveBalance).filter(
             models.LeaveBalance.employee_id == employee.id,
             models.LeaveBalance.leave_type == lt,
         ).first()
 
+        used_days = sum(
+            max((l.end_date - l.start_date).days + 1, 1)
+            for l in approved_leaves
+            if l.leave_type == lt
+        )
+
         if balance:
             balance.total = quota
+            balance.used = used_days
         else:
-            db.add(models.LeaveBalance(
+            balance = models.LeaveBalance(
                 employee_id=employee.id,
                 leave_type=lt,
                 total=quota,
-                used=0,
-            ))
+                used=used_days,
+            )
+            db.add(balance)
+
     db.commit()
 
 
@@ -154,19 +173,30 @@ def get_all_balances(
 ):
     if current_user.role.value == "EMPLOYEE" and current_user.employee:
         sync_employee_leave_balances(db, current_user.employee)
-        return db.query(models.LeaveBalance).filter(models.LeaveBalance.employee_id == current_user.employee.id).all()
+        return (
+            db.query(models.LeaveBalance)
+            .filter(models.LeaveBalance.employee_id == current_user.employee.id)
+            .order_by(models.LeaveBalance.leave_type)
+            .all()
+        )
     elif employee_id:
         emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
         if emp:
             sync_employee_leave_balances(db, emp)
-        return db.query(models.LeaveBalance).filter(models.LeaveBalance.employee_id == employee_id).all()
+            return (
+                db.query(models.LeaveBalance)
+                .filter(models.LeaveBalance.employee_id == employee_id)
+                .order_by(models.LeaveBalance.leave_type)
+                .all()
+            )
+        return []
 
     # Sync all employees if admin/HR
     all_emps = db.query(models.Employee).all()
     for emp in all_emps:
         sync_employee_leave_balances(db, emp)
 
-    return db.query(models.LeaveBalance).all()
+    return db.query(models.LeaveBalance).order_by(models.LeaveBalance.employee_id, models.LeaveBalance.leave_type).all()
 
 
 @router.delete("/{leave_id}")
@@ -178,8 +208,14 @@ def delete_leave(
     leave = db.query(models.Leave).filter(models.Leave.id == leave_id).first()
     if not leave:
         raise HTTPException(status_code=404, detail="Leave not found")
-    if leave.status != "PENDING":
+    if leave.status != "PENDING" and current_user.role.value == "EMPLOYEE":
         raise HTTPException(status_code=400, detail="Cannot cancel non-pending leave")
+    emp_id = leave.employee_id
     db.delete(leave)
     db.commit()
+
+    emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
+    if emp:
+        sync_employee_leave_balances(db, emp)
+
     return {"detail": "Leave cancelled"}

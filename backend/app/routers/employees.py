@@ -376,6 +376,22 @@ def get_employee_leave_balances(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return db.query(models.LeaveBalance).filter(
-        models.LeaveBalance.employee_id == employee_id
-    ).all()
+    from app.routers.leaves import sync_employee_leave_balances
+    if employee_id == "me":
+        if not current_user.employee:
+            from app.routers.attendance import get_or_create_user_employee
+            emp = get_or_create_user_employee(db, current_user)
+        else:
+            emp = current_user.employee
+    else:
+        emp = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+
+    if emp:
+        sync_employee_leave_balances(db, emp)
+        return (
+            db.query(models.LeaveBalance)
+            .filter(models.LeaveBalance.employee_id == emp.id)
+            .order_by(models.LeaveBalance.leave_type)
+            .all()
+        )
+    return []

@@ -152,26 +152,27 @@ export default function Leaves() {
 
       {/* Single Consolidated Leave Balance Summary Card */}
       {balances.length > 0 && (() => {
-        const primary = balances[0];
-        const remaining = Math.max(primary.total - primary.used, 0);
+        const totalQuota = balances[0].total;
+        const totalUsed = balances.reduce((sum, b) => sum + (b.used || 0), 0);
+        const remaining = Math.max(totalQuota - totalUsed, 0);
         return (
           <div className="card p-5 max-w-sm border-l-4 border-l-brand-500 shadow-sm flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Annual Leave Quota</p>
               <div className="flex items-baseline gap-1.5 mt-1">
-                <span className={`text-3xl font-extrabold ${balanceColor(primary.used, primary.total)}`}>{remaining}</span>
-                <span className="text-sm font-semibold text-slate-400">of {primary.total} Left</span>
+                <span className={`text-3xl font-extrabold ${balanceColor(totalUsed, totalQuota)}`}>{remaining}</span>
+                <span className="text-sm font-semibold text-slate-400">of {totalQuota} Left</span>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                {primary.used} day(s) used this year
+                {totalUsed} day(s) used this year
               </p>
             </div>
             <div className="w-24 text-right">
               <div className="text-xs font-bold text-brand-600 dark:text-brand-400 mb-1">
-                {Math.round((remaining / primary.total) * 100)}% Available
+                {Math.round((remaining / totalQuota) * 100)}% Available
               </div>
               <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                <div className="h-2 rounded-full bg-brand-500 transition-all" style={{ width: `${Math.min((remaining / primary.total) * 100, 100)}%` }} />
+                <div className="h-2 rounded-full bg-brand-500 transition-all" style={{ width: `${Math.min((remaining / totalQuota) * 100, 100)}%` }} />
               </div>
             </div>
           </div>

@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Briefcase, FileText, Clock, Edit2, Check, X,
-  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2, Eye, Download, ExternalLink
+  Phone, Mail, MapPin, Heart, Calendar, Building2, Users, Upload, Trash2, Eye, Download, ExternalLink,
+  CalendarDays, CalendarOff, CheckCircle2, AlertCircle, Plus
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -35,8 +36,18 @@ interface Employee {
 interface Department { id: string; name: string; branch: string; }
 interface Document { id: string; doc_type: string; file_name?: string; file_url?: string; uploaded_at?: string; }
 interface LeaveBalance { id: string; leave_type: string; total: number; used: number; }
+interface LeaveRequest {
+  id: string;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  reason?: string;
+  comments?: string;
+  applied_at?: string;
+}
 
-const TABS = ["Personal", "Employment", "Documents", "Timeline"] as const;
+const TABS = ["Personal", "Employment", "Leaves", "Documents", "Timeline"] as const;
 type Tab = typeof TABS[number];
 
 function dataURLtoBlob(dataurl: string): Blob {
@@ -82,6 +93,7 @@ export default function EmployeeProfile() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [tab, setTab] = useState<Tab>("Personal");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Employee>>({});
@@ -123,7 +135,15 @@ export default function EmployeeProfile() {
   useEffect(() => {
     if (!id) return;
     const targetId = id === "me" ? "me" : id;
-    api.get(`/api/employees/${targetId}`).then((r) => { setEmp(r.data); setEditForm(r.data); }).catch(() => navigate("/employees"));
+    api.get(`/api/employees/${targetId}`).then((r) => {
+      setEmp(r.data);
+      setEditForm(r.data);
+      if (r.data?.id) {
+        api.get("/api/leaves", { params: { employee_id: r.data.id } })
+          .then((lr) => setLeaves(lr.data))
+          .catch(() => {});
+      }
+    }).catch(() => navigate("/employees"));
     api.get("/api/departments").then((r) => setDepartments(r.data)).catch(() => {});
     api.get(`/api/employees/${targetId}/documents`).then((r) => setDocuments(r.data)).catch(() => {});
     api.get(`/api/employees/${targetId}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
@@ -247,72 +267,90 @@ export default function EmployeeProfile() {
 
   const deptName = departments.find((d) => d.id === emp.department_id)?.name || "—";
 
+  const totalQuota = leaveBalances.length > 0
+    ? leaveBalances[0].total
+    : (emp?.gender?.toLowerCase() === "female" ? 12 : 6);
+  const totalLeavesTaken = leaveBalances.reduce((sum, b) => sum + (b.used || 0), 0);
+  const leavesRemaining = Math.max(totalQuota - totalLeavesTaken, 0);
+  const percentAvailable = totalQuota > 0 ? Math.round((leavesRemaining / totalQuota) * 100) : 0;
+
+  const daysCount = (start: string, end: string) => {
+    const diff = new Date(end).getTime() - new Date(start).getTime();
+    return Math.max(Math.ceil(diff / 86400000) + 1, 1);
+  };
+
   return (
-    <div className="space-y-5">
-      {/* Back + Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/employees")} className="btn-secondary !px-2.5 !py-2">
-          <ArrowLeft size={16} />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold">{emp.first_name} {emp.last_name}</h1>
-          <p className="text-sm text-slate-400">{emp.designation || "Staff Member"}</p>
-        </div>
-        {canEdit && !editing && (
-          <button onClick={() => setEditing(true)} className="btn-secondary gap-2">
-            <Edit2 size={14} /> Edit Profile
-          </button>
-        )}
-        {editing && (
-          <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
-              <Check size={14} /> {saving ? "Saving..." : "Save"}
-            </button>
-            <button onClick={() => { setEditing(false); setEditForm(emp); setSaveError(""); }} className="btn-secondary gap-2">
-              <X size={14} /> Cancel
-            </button>
+    <div className="space-y-6">
+      {/* Back Button */}
+      <button onClick={() => navigate("/employees")} className="btn-secondary gap-1.5 text-xs">
+        <ArrowLeft size={14} /> Back to Employees
+      </button>
+
+      {/* Profile Header */}
+      <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            {emp.profile_photo_url ? (
+              <img
+                src={emp.profile_photo_url}
+                alt={`${emp.first_name} ${emp.last_name}`}
+                className="h-16 w-16 rounded-2xl object-cover border-2 border-brand-500 shadow-md"
+              />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300 font-bold text-xl">
+                {emp.first_name[0]}{emp.last_name[0]}
+              </div>
+            )}
+            <span
+              className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white dark:border-slate-900 ${
+                emp.status === "Active" ? "bg-emerald-500" : "bg-red-500"
+              }`}
+              title={emp.status}
+            />
           </div>
-        )}
-      </div>
-
-      {saveError && (
-        <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800">
-          {saveError}
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                {emp.first_name} {emp.last_name}
+              </h1>
+              <span className="text-xs text-slate-400 font-mono">#{emp.employee_number}</span>
+            </div>
+            <p className="text-sm text-slate-500">
+              {emp.designation || "Staff Member"} · {(emp as any).team_name || deptName || "General Staff"}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className={`badge ${branchColors[emp.branch] || ""}`}>{emp.branch}</span>
+              {(emp as any).team_name && <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">{(emp as any).team_name}</span>}
+              <span className="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{emp.employment_type}</span>
+              <span className={`badge ${emp.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{emp.status}</span>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Profile Card */}
-      <div className="card p-5 flex flex-wrap items-center gap-5">
-        <div className="relative group shrink-0">
-          {emp.profile_photo_url ? (
-            <img src={emp.profile_photo_url} alt={`${emp.first_name} ${emp.last_name}`} className="h-20 w-20 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm" />
-          ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-100 text-2xl font-bold text-brand-700 dark:bg-brand-900 dark:text-brand-300 shrink-0">
-              {emp.first_name?.[0]}{emp.last_name?.[0]}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {canEdit && !editing && (
+            <button onClick={() => setEditing(true)} className="btn-secondary gap-1.5 text-xs">
+              <Edit2 size={13} /> Edit Profile
+            </button>
+          )}
+          {editing && (
+            <div className="flex items-center gap-2">
+              <button onClick={handleSave} disabled={saving} className="btn-primary gap-1.5 text-xs">
+                <Check size={13} /> {saving ? "Saving..." : "Save"}
+              </button>
+              <button onClick={() => { setEditing(false); setEditForm(emp); setSaveError(""); }} className="btn-secondary gap-1.5 text-xs">
+                <X size={13} /> Cancel
+              </button>
             </div>
           )}
         </div>
-        <div className="flex-1 min-w-0 space-y-1">
-          <h2 className="text-lg font-bold">{emp.first_name} {emp.last_name}</h2>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-500">
-            <span className="flex items-center gap-1"><Mail size={13} /> {emp.email}</span>
-            {emp.phone && <span className="flex items-center gap-1"><Phone size={13} /> {emp.phone}</span>}
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <span className={`badge ${branchColors[emp.branch] || ""}`}>{emp.branch}</span>
-            {(emp as any).team_name && <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">{(emp as any).team_name}</span>}
-            <span className="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{emp.employment_type}</span>
-            <span className={`badge ${emp.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{emp.status}</span>
-          </div>
-        </div>
-        {emp.basic_salary && canManage && (
-          <div className="text-right shrink-0">
-            <p className="text-xs text-slate-400">Basic Salary</p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white">₹{emp.basic_salary.toLocaleString()}</p>
-            <p className="text-xs text-slate-400">per month</p>
-          </div>
-        )}
       </div>
+
+      {saveError && (
+        <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{saveError}</span>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0 border-b border-slate-200 dark:border-slate-800">
@@ -328,6 +366,7 @@ export default function EmployeeProfile() {
           >
             {t === "Personal" && <User size={14} />}
             {t === "Employment" && <Briefcase size={14} />}
+            {t === "Leaves" && <CalendarDays size={14} />}
             {t === "Documents" && <FileText size={14} />}
             {t === "Timeline" && <Clock size={14} />}
             {t}
@@ -434,18 +473,242 @@ export default function EmployeeProfile() {
               editEl={<textarea className="input text-sm" rows={3} value={editForm.address || ""} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />} />
             <EditableField label="Emergency Contact" value={emp.emergency_contact || "—"} editing={editing}
               editEl={<input className="input text-sm" value={editForm.emergency_contact || ""} onChange={(e) => setEditForm({ ...editForm, emergency_contact: e.target.value })} />} />
-            {/* Leave Balances */}
-            {leaveBalances.length > 0 && (
+
+            {/* Leave Balances Widget */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarDays size={16} className="text-brand-500" />
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Leave Balance & Quota</h4>
+                </div>
+                <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/50 px-2 py-0.5 rounded-full">
+                  {emp.gender?.toLowerCase() === "female" ? "12 Days/Yr (Female Quota)" : "6 Days/Yr (Annual Quota)"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Total Quota</p>
+                  <p className="text-base font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">{totalQuota} <span className="text-[10px] font-normal text-slate-400">days</span></p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <p className="text-[10px] uppercase font-bold text-rose-500">Leaves Taken</p>
+                  <p className="text-base font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">{totalLeavesTaken} <span className="text-[10px] font-normal text-slate-400">days</span></p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <p className="text-[10px] uppercase font-bold text-emerald-500">Leaves Left</p>
+                  <p className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{leavesRemaining} <span className="text-[10px] font-normal text-slate-400">left</span></p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
               <div>
-                <p className="text-xs font-semibold text-slate-500 mb-2">Leave Balance</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {leaveBalances.slice(0, 2).map((lb) => (
-                    <div key={lb.id} className="rounded-lg border border-slate-100 dark:border-slate-800 p-2">
-                      <p className="text-xs text-slate-400">Annual Quota</p>
-                      <p className="text-sm font-semibold">{lb.total - lb.used} <span className="text-xs font-normal text-slate-400">/ {lb.total} left</span></p>
-                    </div>
+                <div className="flex justify-between text-[11px] font-medium text-slate-500 mb-1">
+                  <span>Leave Availability</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{percentAvailable}% Remaining</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      percentAvailable >= 50 ? "bg-emerald-500" : percentAvailable >= 20 ? "bg-amber-500" : "bg-rose-500"
+                    }`}
+                    style={{ width: `${Math.min(percentAvailable, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Leave Type Breakdown Pills & Link to Tab */}
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                <div className="flex flex-wrap gap-1">
+                  {leaveBalances.slice(0, 3).map((lb) => (
+                    <span
+                      key={lb.id}
+                      className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300"
+                    >
+                      <span>{lb.leave_type}:</span>
+                      <b className={lb.used > 0 ? "text-rose-600 font-bold" : "text-slate-500"}>{lb.used} used</b>
+                    </span>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setTab("Leaves")}
+                  className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline shrink-0"
+                >
+                  View Details →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "Leaves" && (
+        <div className="space-y-5">
+          {/* Header & Apply Action */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <CalendarDays className="text-brand-500" size={18} /> Employee Leave Management
+              </h3>
+              <p className="text-xs text-slate-400">
+                Annual leave quota, balance breakdown, and history of leave requests for {emp.first_name} {emp.last_name}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/leaves")}
+              className="btn-primary gap-1.5 text-xs py-2 px-3 shadow-sm hover:shadow-brand-500/20"
+            >
+              <Plus size={14} /> Apply / Manage Leaves
+            </button>
+          </div>
+
+          {/* 3 Main Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="card p-5 border-l-4 border-l-brand-500 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase text-slate-400 tracking-wider">Annual Leave Quota</span>
+                <Calendar className="text-brand-500" size={18} />
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold text-slate-900 dark:text-white">{totalQuota}</span>
+                <span className="text-xs text-slate-400 font-medium">days / year</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Policy: {emp.gender?.toLowerCase() === "female" ? "12 days/year (Female Staff)" : "6 days/year (Standard)"}
+              </p>
+            </div>
+
+            <div className="card p-5 border-l-4 border-l-rose-500 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase text-slate-400 tracking-wider">Total Leaves Taken</span>
+                <CalendarOff className="text-rose-500" size={18} />
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400">{totalLeavesTaken}</span>
+                <span className="text-xs text-slate-400 font-medium">day(s) taken</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {totalLeavesTaken > 0 ? `${totalLeavesTaken} approved leave day(s) recorded` : "No leaves used so far"}
+              </p>
+            </div>
+
+            <div className="card p-5 border-l-4 border-l-emerald-500 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase text-slate-400 tracking-wider">Leaves Remaining</span>
+                <CheckCircle2 className="text-emerald-500" size={18} />
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{leavesRemaining}</span>
+                <span className="text-xs text-slate-400 font-medium">of {totalQuota} Left</span>
+              </div>
+              <div className="pt-1">
+                <div className="flex justify-between text-[10px] font-bold text-brand-600 dark:text-brand-400 mb-1">
+                  <span>{percentAvailable}% Available</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${
+                      percentAvailable >= 50 ? "bg-emerald-500" : percentAvailable >= 20 ? "bg-amber-500" : "bg-rose-500"
+                    }`}
+                    style={{ width: `${Math.min(percentAvailable, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Leave Type Breakdown Cards */}
+          {leaveBalances.length > 0 && (
+            <div className="card p-5 space-y-3">
+              <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Leave Balances by Category</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {leaveBalances.map((lb) => {
+                  const rem = Math.max(lb.total - lb.used, 0);
+                  return (
+                    <div key={lb.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{lb.leave_type}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lb.used > 0 ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
+                          {lb.used} taken
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between text-xs">
+                        <span className="text-slate-400">Available:</span>
+                        <span className="font-extrabold text-slate-700 dark:text-slate-300">{rem} / {lb.total} days</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Leave Requests & History Table */}
+          <div className="card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Leave History & Requests</h4>
+                <p className="text-xs text-slate-400">All leave applications submitted by {emp.first_name}</p>
+              </div>
+              <span className="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                {leaves.length} Total Request(s)
+              </span>
+            </div>
+
+            {leaves.length === 0 ? (
+              <div className="text-center py-10 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                <CalendarDays className="mx-auto text-slate-300 dark:text-slate-600 mb-2" size={36} />
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No leaves taken yet</p>
+                <p className="text-xs text-slate-400 mt-1">This employee has not taken any leaves. All {totalQuota} days are available.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-400 uppercase">
+                    <tr>
+                      <th className="pb-2.5">Leave Type</th>
+                      <th className="pb-2.5">Duration</th>
+                      <th className="pb-2.5">Days</th>
+                      <th className="pb-2.5">Status</th>
+                      <th className="pb-2.5">Reason</th>
+                      <th className="pb-2.5">Applied On</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {leaves.map((l) => {
+                      const dur = daysCount(l.start_date, l.end_date);
+                      const statusStyles: Record<string, string> = {
+                        APPROVED: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300",
+                        PENDING: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300",
+                        MANAGER_APPROVED: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300",
+                        REJECTED: "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300",
+                      };
+                      return (
+                        <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="py-3 font-semibold text-slate-800 dark:text-slate-200">{l.leave_type}</td>
+                          <td className="py-3 text-slate-600 dark:text-slate-300">
+                            {new Date(l.start_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            {" → "}
+                            {new Date(l.end_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          </td>
+                          <td className="py-3 font-bold text-slate-800 dark:text-slate-100">{dur} day(s)</td>
+                          <td className="py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border ${statusStyles[l.status] || "bg-slate-100 text-slate-700"}`}>
+                              {l.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-slate-500 max-w-xs truncate" title={l.reason || "No reason provided"}>
+                            {l.reason || "—"}
+                          </td>
+                          <td className="py-3 text-slate-400">
+                            {l.applied_at ? new Date(l.applied_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

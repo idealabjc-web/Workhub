@@ -261,17 +261,18 @@ export default function Dashboard() {
               <CalendarDays className="text-amber-500 shrink-0" size={18} />
             </div>
             {balances.length > 0 ? (() => {
-              const primary = balances[0];
-              const remaining = Math.max(primary.total - primary.used, 0);
-              const pct = Math.round((remaining / primary.total) * 100);
+              const totalQuota = balances[0].total;
+              const totalUsed = balances.reduce((sum, b) => sum + (b.used || 0), 0);
+              const remaining = Math.max(totalQuota - totalUsed, 0);
+              const pct = Math.round((remaining / totalQuota) * 100);
               return (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{remaining}</span>
-                      <span className="text-xs text-slate-400 font-semibold">of {primary.total} Left</span>
+                      <span className="text-xs text-slate-400 font-semibold">of {totalQuota} Left</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{primary.used} day(s) used this year</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{totalUsed} day(s) used this year</p>
                   </div>
                   <div className="w-20 text-right shrink-0">
                     <div className="text-[11px] font-bold text-brand-600 dark:text-brand-400 mb-1">{pct}% Available</div>
