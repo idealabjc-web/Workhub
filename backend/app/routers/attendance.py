@@ -1,6 +1,6 @@
 import math
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import extract
@@ -25,21 +25,37 @@ OFFICE_LOCATIONS = {
         "name": "Lotus Idealab Campus",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 50.0,
+        "radius_meters": 80.0,
     },
     "UGC": {
         "name": "Lotus UGC Office",
         "lat": 17.478938,
         "lng": 78.393835,
-        "radius_meters": 50.0,
+        "radius_meters": 80.0,
     },
     "VIZAG": {
         "name": "Lotus Vizag Office",
         "lat": 17.6829765,
         "lng": 83.1828647,
-        "radius_meters": 50.0,
+        "radius_meters": 80.0,
     },
 }
+
+# Whitelist: Only these 3 employees are permitted for remote check-in
+REMOTE_ALLOWED_EMPLOYEE_NUMBERS = {"EMP0031", "EMP0040", "EMP1066"}
+REMOTE_ALLOWED_NAMES = {"sruthi reddy", "safura tahseen", "sarva srilaksmi", "sarva srilakshmi"}
+
+def is_remote_eligible_employee(employee: Optional[models.Employee]) -> bool:
+    if not employee:
+        return False
+    emp_num = (employee.employee_number or "").strip().upper()
+    if emp_num in REMOTE_ALLOWED_EMPLOYEE_NUMBERS:
+        return True
+    full_name = f"{employee.first_name or ''} {employee.last_name or ''}".strip().lower()
+    if full_name in REMOTE_ALLOWED_NAMES:
+        return True
+    return False
+
 
 
 
@@ -101,12 +117,8 @@ def ensure_naive(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 def validate_office_location(db: Session, employee: models.Employee, user_lat: float, user_lng: float, is_checkout: bool = False):
-    # Check if global remote check-in / geofence bypass is enabled
-    bypass_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
-    global_remote = bypass_setting.value == "true" if bypass_setting else False
-
-    # Check if employee is explicitly permitted for WFH
-    is_wfh = getattr(employee, "is_wfh_allowed", False) if employee else False
+    # Remote check-in is restricted strictly to designated whitelisted employees (or active approved WFH for today)
+    is_whitelisted_remote = is_remote_eligible_employee(employee)
 
     # Check if employee has WFH attendance status today
     today = date.today()
@@ -116,30 +128,15 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
     ).first() if employee else None
     has_wfh_today = (today_att.status == models.AttendanceStatusEnum.WFH) if today_att else False
 
-    allow_remote = global_remote or is_wfh or has_wfh_today
+    allow_remote = is_whitelisted_remote or has_wfh_today
 
     branch_val = "IDEALAB"
     if employee and employee.branch:
         branch_val = employee.branch.value if hasattr(employee.branch, "value") else str(employee.branch)
     office = dict(OFFICE_LOCATIONS.get(branch_val) or OFFICE_LOCATIONS["IDEALAB"])
 
-    # Check for custom override in SystemSetting
-    custom_setting = db.query(models.SystemSetting).filter(
-        models.SystemSetting.key == f"office_location_{branch_val}"
-    ).first()
-    if custom_setting and custom_setting.value:
-        try:
-            import json
-            cfg = json.loads(custom_setting.value)
-            office["name"] = cfg.get("name", office["name"])
-            office["lat"] = float(cfg.get("lat", office["lat"]))
-            office["lng"] = float(cfg.get("lng", office["lng"]))
-            office["radius_meters"] = float(cfg.get("radius_meters", office["radius_meters"]))
-        except Exception:
-            pass
-
-    # For check-out: if user has already checked in today or remote is allowed, bypass location check if GPS is not available (0.0, 0.0)
-    if is_checkout and (allow_remote or (today_att and today_att.check_in) or (user_lat == 0.0 and user_lng == 0.0)):
+    # For check-out: if remote is allowed, bypass location check
+    if is_checkout and allow_remote:
         return office, 0.0
 
     # If remote check-in is allowed for this employee, skip distance check
@@ -151,14 +148,14 @@ def validate_office_location(db: Session, employee: models.Employee, user_lat: f
         raise HTTPException(
             status_code=400,
             detail=(
-                "Location verification required! You are an office employee and must check in from office premises. "
+                "Location verification required! You must check in from office premises (within 80m). "
                 "Please enable browser/device location services."
             ),
         )
 
     office_lat = float(office["lat"])
     office_lng = float(office["lng"])
-    allowed_radius = float(office["radius_meters"])
+    allowed_radius = float(office.get("radius_meters", 80.0))
 
     distance = calculate_haversine_distance(user_lat, user_lng, office_lat, office_lng)
 
@@ -205,26 +202,9 @@ def get_today_status(
         branch_val = emp.branch.value if hasattr(emp.branch, "value") else str(emp.branch)
     office = dict(OFFICE_LOCATIONS.get(branch_val) or OFFICE_LOCATIONS["IDEALAB"])
 
-    custom_setting = db.query(models.SystemSetting).filter(
-        models.SystemSetting.key == f"office_location_{branch_val}"
-    ).first()
-    if custom_setting and custom_setting.value:
-        try:
-            import json
-            cfg = json.loads(custom_setting.value)
-            office["name"] = cfg.get("name", office["name"])
-            office["lat"] = float(cfg.get("lat", office["lat"]))
-            office["lng"] = float(cfg.get("lng", office["lng"]))
-            office["radius_meters"] = float(cfg.get("radius_meters", office["radius_meters"]))
-        except Exception:
-            pass
-
-    remote_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_remote_checkin").first()
-    global_remote = remote_setting.value == "true" if remote_setting else False
-    is_wfh = getattr(emp, "is_wfh_allowed", False) if emp else False
-
+    is_whitelisted_remote = is_remote_eligible_employee(emp)
     has_wfh_today = (att.status == models.AttendanceStatusEnum.WFH) if att else False
-    allow_remote = global_remote or is_wfh or has_wfh_today
+    allow_remote = is_whitelisted_remote or has_wfh_today
 
     return {
         "date": today.isoformat(),
@@ -232,9 +212,10 @@ def get_today_status(
         "branch": branch_val,
         "office_location": office,
         "allow_remote_checkin": allow_remote,
-        "is_wfh_allowed": is_wfh,
+        "is_wfh_allowed": allow_remote,
         "attendance": schemas.AttendanceOut.model_validate(att) if att else None,
     }
+
 
 
 @router.post("/set-office-location")
@@ -480,9 +461,10 @@ def check_in(
     office, dist = validate_office_location(db, emp, user_lat, user_lng)
 
     now = ist_now()
-    is_late = now.hour > 9 or (now.hour == 9 and now.minute > 30)
+    is_late = False
 
     if existing:
+
         existing.check_in = now
         existing.check_in_lat = user_lat
         existing.check_in_lng = user_lng
@@ -565,7 +547,7 @@ def edit_attendance_time(
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
 ):
     """Endpoint to manually update or create an employee's check-in / check-out times and status."""
-    att = None
+    att: Any = None
     if id and not id.startswith("virtual-") and id != "upsert":
         att = db.query(models.Attendance).filter(models.Attendance.id == id).first()
 
@@ -579,7 +561,7 @@ def edit_attendance_time(
     # If still not found and we have employee_id & date, create a new record
     if not att:
         emp_id = payload.employee_id or (id.replace("virtual-", "") if id.startswith("virtual-") else None)
-        rec_date = payload.date or date.today()
+        rec_date: date = payload.date or date.today()
         if not emp_id:
             raise HTTPException(status_code=404, detail="Attendance record not found and employee ID not provided")
         
@@ -596,7 +578,8 @@ def edit_attendance_time(
         db.add(att)
         db.flush()
 
-    rec_date = att.date
+    rec_date: date = cast(date, att.date)
+
 
     # Validate monthly lock
     month_str = rec_date.strftime("%Y-%m")
@@ -615,9 +598,7 @@ def edit_attendance_time(
             parts = val_str.split(":")
             h, m = int(parts[0]), int(parts[1])
             s = int(parts[2]) if len(parts) > 2 else 0
-            # Convert user local IST time (UTC+5:30) to standard UTC naive datetime
-            local_dt = datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
-            return local_dt - timedelta(hours=5, minutes=30)
+            return datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
         try:
             val_clean = val_str.replace("Z", "")
             if "+" in val_clean:
@@ -627,6 +608,7 @@ def edit_attendance_time(
         except Exception:
             return None
 
+
     if payload.check_in is not None:
         if payload.check_in == "" or payload.check_in == "CLEAR":
             att.check_in = None
@@ -635,8 +617,8 @@ def edit_attendance_time(
             new_cin = parse_time_input(payload.check_in, rec_date)
             if new_cin:
                 att.check_in = new_cin
-                ist_cin = new_cin + timedelta(hours=5, minutes=30)
-                att.is_late = ist_cin.hour > 9 or (ist_cin.hour == 9 and ist_cin.minute > 30)
+                att.is_late = False
+
 
     if payload.check_out is not None:
         if payload.check_out == "" or payload.check_out == "CLEAR":
@@ -705,8 +687,7 @@ def bulk_update_attendance_time(
             parts = val_str.split(":")
             h, m = int(parts[0]), int(parts[1])
             s = int(parts[2]) if len(parts) > 2 else 0
-            local_dt = datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
-            return local_dt - timedelta(hours=5, minutes=30)
+            return datetime.combine(ref_date, datetime.min.time().replace(hour=h, minute=m, second=s))
         try:
             val_clean = val_str.replace("Z", "")
             if "+" in val_clean:
@@ -715,6 +696,7 @@ def bulk_update_attendance_time(
             return dt.replace(tzinfo=None)
         except Exception:
             return None
+
 
     emp_query = db.query(models.Employee).filter(models.Employee.status == models.EmployeeStatusEnum.ACTIVE)
     if payload.employee_ids and len(payload.employee_ids) > 0:
@@ -732,10 +714,11 @@ def bulk_update_attendance_time(
 
     updated_count = 0
     for emp in employees:
-        att = db.query(models.Attendance).filter(
+        att: Any = db.query(models.Attendance).filter(
             models.Attendance.employee_id == emp.id,
             models.Attendance.date == rec_date,
         ).first()
+
 
         if not att:
             att = models.Attendance(
@@ -755,11 +738,8 @@ def bulk_update_attendance_time(
                 att.is_late = False
             else:
                 att.check_in = cin_dt
-                if cin_dt:
-                    ist_cin = cin_dt + timedelta(hours=5, minutes=30)
-                    att.is_late = ist_cin.hour > 9 or (ist_cin.hour == 9 and ist_cin.minute > 30)
-                else:
-                    att.is_late = False
+                att.is_late = False
+
 
 
         if payload.check_out is not None:

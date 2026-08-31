@@ -84,42 +84,54 @@ function formatDayName(dateStr: string): string {
 }
 
 /**
+ * Parse an ISO or datetime string directly into a local Date without UTC offset shifts.
+ */
+function parseLocalDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const str = dateStr.trim();
+  if (!str) return null;
+
+  // Handle bare time e.g. "09:17" or "09:17:00"
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const parts = str.split(":").map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), parts[0] || 0, parts[1] || 0, parts[2] || 0);
+  }
+
+  // Strip trailing Z or timezone offset to treat the stored datetime as local time
+  let clean = str.replace("Z", "");
+  if (clean.includes("+")) clean = clean.split("+")[0];
+
+  const sep = clean.includes("T") ? "T" : clean.includes(" ") ? " " : null;
+  if (sep) {
+    const [dPart, tPart] = clean.split(sep);
+    if (dPart && tPart) {
+      const [yr, mo, dy] = dPart.split("-").map(Number);
+      const [h, m, s] = tPart.split(":").map(Number);
+      if (!isNaN(yr) && !isNaN(mo) && !isNaN(dy)) {
+        return new Date(yr, mo - 1, dy, h || 0, m || 0, s || 0);
+      }
+    }
+  }
+
+  const d = new Date(clean);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * Format timestamp into local "HH:MM AM/PM".
- * Accurately parses UTC ISO timestamps from backend into local time (IST).
  */
 function formatLocalTime(dateStr?: string | null): string {
   if (!dateStr) return "—";
-  const str = dateStr.trim();
-  if (!str) return "—";
-
-  // Bare time format: "09:30" or "09:30:00"
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
-    const parts = str.split(":");
-    let h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return "—";
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-  }
-
-  try {
-    let iso = str.replace(" ", "T");
-    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
-      iso += "Z";
-    }
-    const d = new Date(iso);
-    if (!isNaN(d.getTime())) {
-      let h = d.getHours();
-      const m = d.getMinutes();
-      const ampm = h >= 12 ? "PM" : "AM";
-      const h12 = h % 12 || 12;
-      return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-    }
-  } catch {}
-
-  return "—";
+  const d = parseLocalDate(dateStr);
+  if (!d) return "—";
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
 }
+
 
 
 export default function Attendance() {
@@ -202,20 +214,13 @@ export default function Attendance() {
       if (!dtStr) return "";
       const str = dtStr.trim();
       if (/^\d{1,2}:\d{2}$/.test(str)) return str;
-      try {
-        let iso = str.replace(" ", "T");
-        if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
-          iso += "Z";
-        }
-        const d = new Date(iso);
-        if (!isNaN(d.getTime())) {
-          const h = String(d.getHours()).padStart(2, "0");
-          const m = String(d.getMinutes()).padStart(2, "0");
-          return `${h}:${m}`;
-        }
-      } catch {}
-      return "";
+      const d = parseLocalDate(dtStr);
+      if (!d) return "";
+      const h = String(d.getHours()).padStart(2, "0");
+      const m = String(d.getMinutes()).padStart(2, "0");
+      return `${h}:${m}`;
     };
+
 
     setTimeForm({
       check_in: getHHMM(r.check_in),

@@ -39,20 +39,39 @@ interface TodayStatusData {
  * The backend stores IST as naive datetimes. We parse them as local
  * by manually constructing the Date so no UTC shift happens.
  */
-function parseUtcDate(dateStr?: string | null): Date | null {
+/**
+ * Parse an ISO or datetime string directly into a local Date without UTC offset shifts.
+ */
+function parseLocalDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
   const str = dateStr.trim();
   if (!str) return null;
-  try {
-    let iso = str.replace(" ", "T");
-    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
-      iso += "Z";
-    }
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? null : d;
-  } catch {
-    return null;
+
+  // Handle bare time e.g. "09:17" or "09:17:00"
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const parts = str.split(":").map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), parts[0] || 0, parts[1] || 0, parts[2] || 0);
   }
+
+  // Strip trailing Z or timezone offset to treat the stored datetime as local time
+  let clean = str.replace("Z", "");
+  if (clean.includes("+")) clean = clean.split("+")[0];
+
+  const sep = clean.includes("T") ? "T" : clean.includes(" ") ? " " : null;
+  if (sep) {
+    const [dPart, tPart] = clean.split(sep);
+    if (dPart && tPart) {
+      const [yr, mo, dy] = dPart.split("-").map(Number);
+      const [h, m, s] = tPart.split(":").map(Number);
+      if (!isNaN(yr) && !isNaN(mo) && !isNaN(dy)) {
+        return new Date(yr, mo - 1, dy, h || 0, m || 0, s || 0);
+      }
+    }
+  }
+
+  const d = new Date(clean);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /**
@@ -60,36 +79,15 @@ function parseUtcDate(dateStr?: string | null): Date | null {
  */
 function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
   if (!dateStr) return fallback;
-  const str = dateStr.trim();
-  if (!str) return fallback;
-
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
-    const parts = str.split(":");
-    let h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return fallback;
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-  }
-
-  try {
-    let iso = str.replace(" ", "T");
-    if (!iso.endsWith("Z") && !iso.includes("+") && !iso.match(/[+-]\d{2}:\d{2}$/)) {
-      iso += "Z";
-    }
-    const d = new Date(iso);
-    if (!isNaN(d.getTime())) {
-      let h = d.getHours();
-      const m = d.getMinutes();
-      const ampm = h >= 12 ? "PM" : "AM";
-      const h12 = h % 12 || 12;
-      return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-    }
-  } catch {}
-
-  return fallback;
+  const d = parseLocalDate(dateStr);
+  if (!d) return fallback;
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
 }
+
 
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
@@ -216,8 +214,9 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
       return;
     }
 
-    const checkInDate = parseUtcDate(data.attendance.check_in);
+    const checkInDate = parseLocalDate(data.attendance.check_in);
     if (!checkInDate) return;
+
     const checkInTime = checkInDate.getTime();
 
     const updateTimer = () => {
@@ -489,8 +488,8 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
           <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
             {formatLocalTime(att?.check_in, "Not checked in")}
           </p>
-          {att?.is_late && <span className="text-[10px] font-bold text-amber-600">Late Check-in</span>}
         </div>
+
 
         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
           <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-Out Time</p>

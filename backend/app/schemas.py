@@ -253,13 +253,11 @@ class AttendanceOut(BaseModel):
     branch: Optional[str] = None
 
     @field_serializer("check_in", "check_out", mode="plain")
-    def serialize_utc_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
+    def serialize_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
         if dt is None:
             return None
-        iso = dt.isoformat()
-        if not iso.endswith("Z") and "+" not in iso:
-            return iso + "Z"
-        return iso
+        return dt.isoformat()
+
 
 
     class Config:
