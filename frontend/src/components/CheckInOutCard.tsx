@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ShieldCheck, Settings, Globe } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ShieldCheck, Settings, Globe, ShieldAlert } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -35,12 +35,9 @@ interface TodayStatusData {
 }
 
 /**
- * Parse a datetime string into a Date object for timer calculations.
+ * Parse an ISO or datetime string directly into a local Date without UTC offset shifts.
  * The backend stores IST as naive datetimes. We parse them as local
  * by manually constructing the Date so no UTC shift happens.
- */
-/**
- * Parse an ISO or datetime string directly into a local Date without UTC offset shifts.
  */
 function parseLocalDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
@@ -88,7 +85,8 @@ function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
   return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-
+// Cooldown period in seconds after check-in before check-out is allowed
+const CHECKOUT_COOLDOWN_SECONDS = 60;
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
   const { user } = useAuth();
@@ -109,6 +107,10 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
 
   // Live work duration counter
   const [workDuration, setWorkDuration] = useState<string>("");
+
+  // Checkout safeguard: cooldown timer + confirmation
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -234,6 +236,33 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
     return () => clearInterval(interval);
   }, [data?.attendance]);
 
+  // Cooldown timer: calculate remaining seconds since check-in
+  useEffect(() => {
+    if (!data?.attendance?.check_in || data.attendance.check_out) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    const checkInDate = parseLocalDate(data.attendance.check_in);
+    if (!checkInDate) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    const checkInTime = checkInDate.getTime();
+
+    const updateCooldown = () => {
+      const now = new Date().getTime();
+      const elapsed = Math.floor((now - checkInTime) / 1000);
+      const remaining = Math.max(0, CHECKOUT_COOLDOWN_SECONDS - elapsed);
+      setCooldownRemaining(remaining);
+    };
+
+    updateCooldown();
+    const interval = setInterval(updateCooldown, 1000);
+    return () => clearInterval(interval);
+  }, [data?.attendance]);
+
   const handleCheckIn = async () => {
     setError(null);
     setSuccess(null);
@@ -246,6 +275,8 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
         longitude: coords?.lng || 0.0,
       });
       setSuccess("Checked in successfully!");
+      // Start the cooldown immediately
+      setCooldownRemaining(CHECKOUT_COOLDOWN_SECONDS);
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
@@ -274,6 +305,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
         longitude: coords?.lng || 0.0,
       });
       setSuccess("Checked out successfully!");
+      setShowCheckoutConfirm(false);
       await loadStatus();
       if (onStatusChange) onStatusChange();
     } catch (err: any) {
@@ -285,6 +317,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
         else detailMsg = JSON.stringify(d);
       }
       setError(detailMsg);
+      setShowCheckoutConfirm(false);
     } finally {
       setActionLoading(false);
     }
@@ -347,6 +380,7 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   const isNotCheckedIn = !att?.check_in;
 
   const isWithinGeofence = remoteAllowed || (distanceMeters !== null && office ? distanceMeters <= office.radius_meters : false);
+  const isCooldownActive = isCheckedIn && cooldownRemaining > 0;
 
   return (
     <div className="card p-5 space-y-4 border-l-4 border-l-brand-500 shadow-sm">
@@ -490,7 +524,6 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
           </p>
         </div>
 
-
         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
           <p className="text-slate-400 text-[10px] uppercase font-semibold">Check-Out Time</p>
           <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
@@ -501,6 +534,45 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
           ) : null}
         </div>
       </div>
+
+      {/* Checkout Confirmation Dialog */}
+      {showCheckoutConfirm && (
+        <div className="rounded-xl border-2 border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 p-4 space-y-3">
+          <div className="flex items-start gap-2.5">
+            <ShieldAlert size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                Confirm Check-Out
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                Are you sure you want to check out? You have been working for <b>{workDuration}</b>.
+                This action cannot be undone — you will not be able to check in again today.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2.5 ml-7">
+            <button
+              onClick={handleCheckOut}
+              disabled={actionLoading}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 transition shadow disabled:opacity-50"
+            >
+              {actionLoading ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <LogOut size={14} />
+              )}
+              Yes, Check Out Now
+            </button>
+            <button
+              onClick={() => setShowCheckoutConfirm(false)}
+              disabled={actionLoading}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs px-4 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex gap-3">
@@ -519,18 +591,32 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
           </button>
         )}
 
-        {isCheckedIn && (
+        {isCheckedIn && !showCheckoutConfirm && (
           <button
-            onClick={handleCheckOut}
-            disabled={actionLoading}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm py-2.5 transition shadow-md disabled:opacity-50"
+            onClick={() => {
+              if (isCooldownActive) return;
+              setShowCheckoutConfirm(true);
+            }}
+            disabled={actionLoading || isCooldownActive}
+            className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl font-bold text-sm py-2.5 transition shadow-md disabled:opacity-50 ${
+              isCooldownActive
+                ? "bg-slate-400 dark:bg-slate-600 text-slate-200 dark:text-slate-400 cursor-not-allowed"
+                : "bg-rose-600 hover:bg-rose-700 text-white"
+            }`}
           >
-            {actionLoading ? (
+            {isCooldownActive ? (
+              <>
+                <ShieldAlert size={16} />
+                Check-Out Available in {cooldownRemaining}s
+              </>
+            ) : actionLoading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
-              <LogOut size={16} />
+              <>
+                <LogOut size={16} />
+                Check Out
+              </>
             )}
-            Check Out
           </button>
         )}
 

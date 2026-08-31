@@ -881,7 +881,7 @@ def finalize_month(
             branch=branch or None,
             is_finalized=True,
             finalized_by=current_user.id,
-            finalized_at=datetime.utcnow(),
+            finalized_at=models.utc_now(),
         )
         db.add(fin)
     else:

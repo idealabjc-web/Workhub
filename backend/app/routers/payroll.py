@@ -1,4 +1,6 @@
 from datetime import datetime
+
+from app.models import utc_now as _utc_now
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -141,7 +143,7 @@ def update_payroll_status(
         raise HTTPException(status_code=404, detail="Payroll not found")
     payroll.status = payload.status
     if payload.status == "Paid":
-        payroll.paid_at = datetime.utcnow()
+        payroll.paid_at = _utc_now()
     db.commit()
     db.refresh(payroll)
     return payroll
@@ -178,7 +180,7 @@ def send_payslip(
     ).first()
 
     if payslip:
-        payslip.sent_at = datetime.utcnow()
+        payslip.sent_at = _utc_now()
         payslip.sent_to_email = employee.email if employee else "unknown"
         db.commit()
 
