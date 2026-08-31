@@ -256,6 +256,13 @@ class AttendanceOut(BaseModel):
     def serialize_datetime(self, dt: Optional[datetime.datetime]) -> Optional[str]:
         if dt is None:
             return None
+        if getattr(dt, "tzinfo", None) is None:
+            # If stored with UTC hour (1-6 AM or 12-15 PM), convert to IST (+5:30)
+            if (1 <= dt.hour <= 6) or (12 <= dt.hour <= 15):
+                dt = dt + datetime.timedelta(hours=5, minutes=30)
+        elif dt.tzinfo is not None:
+            ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+            dt = dt.astimezone(ist)
         return dt.isoformat()
 
 
