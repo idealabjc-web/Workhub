@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Plus, Check, X, Trash2, Calendar, Eye, FileText, Pencil } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Check, X, Trash2, Calendar, Eye, FileText, Pencil, Download, Search, Filter } from "lucide-react";
+import * as XLSX from "xlsx";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -59,6 +60,8 @@ export default function Leaves() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [statusFilter, setStatusFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { user } = useAuth();
   const canApprove = user && ["SUPER_ADMIN", "HR", "MANAGER"].includes(user.role);
@@ -96,10 +99,13 @@ export default function Leaves() {
     const params: any = {};
     if (statusFilter) params.status = statusFilter;
     api.get("/api/leaves", { params }).then((r) => setRows(r.data)).catch(() => {});
-    api.get("/api/leaves/balances").then((r) => setBalances(r.data)).catch(() => {});
+
+    // Fetch personal balances for logged-in user if available
+    const balParams = user?.employee_id ? { employee_id: user.employee_id } : {};
+    api.get("/api/leaves/balances", { params: balParams }).then((r) => setBalances(r.data)).catch(() => {});
   };
 
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => { load(); }, [statusFilter, user?.employee_id]);
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +136,40 @@ export default function Leaves() {
     return Math.max(Math.ceil(diff / 86400000) + 1, 1);
   };
 
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (branchFilter && r.branch !== branchFilter) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      const matchName = r.employee_name?.toLowerCase().includes(q);
+      const matchNum = r.employee_number?.toLowerCase().includes(q);
+      const matchReason = r.reason?.toLowerCase().includes(q);
+      const matchType = (LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type).toLowerCase().includes(q);
+      const matchStatus = r.status?.toLowerCase().includes(q);
+      return Boolean(matchName || matchNum || matchReason || matchType || matchStatus);
+    });
+  }, [rows, branchFilter, searchQuery]);
+
+  const exportLeavesExcel = () => {
+    const exportData = filteredRows.map((r) => ({
+      "Employee #": r.employee_number || "—",
+      "Employee Name": r.employee_name || "—",
+      "Branch": r.branch || "—",
+      "Leave Type": LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type,
+      "From Date": formatDateMDY(r.start_date),
+      "To Date": formatDateMDY(r.end_date),
+      "Days": daysBetween(r.start_date, r.end_date),
+      "Reason": r.reason || "—",
+      "Applied Date": formatDateMDY(r.applied_at),
+      "Status": r.status || "—",
+      "Comments": r.comments || "—",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leaves");
+    XLSX.writeFile(wb, `Leaves_Report_${statusFilter || "All"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const balanceColor = (used: number, total: number) => {
     const pct = used / total;
@@ -145,9 +185,19 @@ export default function Leaves() {
           <h1 className="text-2xl font-semibold">Leave Management</h1>
           <p className="text-sm text-slate-400">Apply, track, and manage leave requests</p>
         </div>
-        <button className="btn-primary gap-2" onClick={() => setShowForm((s) => !s)}>
-          <Plus size={16} /> Apply Leave
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary gap-2"
+            onClick={exportLeavesExcel}
+            title="Export leave records to Excel"
+          >
+            <Download size={16} /> Export to Excel
+          </button>
+          <button className="btn-primary gap-2" onClick={() => setShowForm((s) => !s)}>
+            <Plus size={16} /> Apply Leave
+          </button>
+        </div>
       </div>
 
       {/* Single Consolidated Leave Balance Summary Card */}
@@ -216,15 +266,36 @@ export default function Leaves() {
         </form>
       )}
 
-      {/* Filter */}
-      <div className="flex gap-2">
-        <select className="input w-44 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="MANAGER_APPROVED">Manager Approved</option>
-        </select>
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search employee, reason..."
+              className="input pl-9 w-60 text-xs"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <select className="input w-40 text-xs" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="MANAGER_APPROVED">Manager Approved</option>
+          </select>
+          <select className="input w-36 text-xs" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+            <option value="">All Branches</option>
+            <option value="IDEALAB">Lotus Idealab</option>
+            <option value="UGC">Lotus UGC</option>
+            <option value="VIZAG">Lotus Vizag</option>
+          </select>
+        </div>
+        <p className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-slate-700 dark:text-slate-200">{filteredRows.length}</span> of {rows.length} request(s)
+        </p>
       </div>
 
       {/* Table */}
@@ -244,7 +315,7 @@ export default function Leaves() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <tr
                 key={r.id}
                 onClick={() => setSelectedLeave(r)}
@@ -308,7 +379,7 @@ export default function Leaves() {
                 )}
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No leave requests found</td></tr>}
+            {filteredRows.length === 0 && <tr><td colSpan={canApprove ? 9 : 8} className="px-4 py-10 text-center text-slate-400">No leave requests found matching your filters</td></tr>}
           </tbody>
         </table>
       </div>
