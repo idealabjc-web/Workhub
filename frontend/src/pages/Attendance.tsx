@@ -98,48 +98,29 @@ function parseLocalDate(dateStr?: string | null): Date | null {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), parts[0] || 0, parts[1] || 0, parts[2] || 0);
   }
 
-  // Check if string contains standard ISO format with timezone offset
-  if (str.includes("Z") || str.includes("+") || (str.includes("-") && str.lastIndexOf("-") > 10)) {
+  // If string contains explicit UTC timezone ("Z" or "+00:00"), parse using Date constructor
+  if (str.endsWith("Z") || str.includes("+00:00")) {
     const d = new Date(str);
     if (!isNaN(d.getTime())) return d;
   }
 
-  const sep = str.includes("T") ? "T" : str.includes(" ") ? " " : null;
+  // Strip trailing Z or +offset to treat ISO date string as clean local IST datetime
+  let clean = str.replace("Z", "");
+  if (clean.includes("+")) clean = clean.split("+")[0];
+
+  const sep = clean.includes("T") ? "T" : clean.includes(" ") ? " " : null;
   if (sep) {
-    const [dPart, tPart] = str.split(sep);
+    const [dPart, tPart] = clean.split(sep);
     if (dPart && tPart) {
       const [yr, mo, dy] = dPart.split("-").map(Number);
       const [rawH, rawM, rawS] = tPart.split(":").map(Number);
       if (!isNaN(yr) && !isNaN(mo) && !isNaN(dy)) {
-        let h = rawH || 0;
-        let m = rawM || 0;
-        const s = rawS || 0;
-
-        // Auto-convert UTC stored times to Indian Standard Time (IST +5:30):
-        // Early morning 1-6 AM UTC check-in -> convert to IST (e.g. 04:00 UTC -> 09:30 AM IST)
-        if (h >= 1 && h <= 6) {
-          h += 5;
-          m += 30;
-          if (m >= 60) {
-            h += 1;
-            m -= 60;
-          }
-        } else if (h >= 12 && h <= 15) {
-          // Mid-day 12-15 UTC check-out -> convert to IST (e.g. 13:00 UTC -> 18:30 / 06:30 PM IST)
-          h += 5;
-          m += 30;
-          if (m >= 60) {
-            h += 1;
-            m -= 60;
-          }
-        }
-
-        return new Date(yr, mo - 1, dy, h, m, s);
+        return new Date(yr, mo - 1, dy, rawH || 0, rawM || 0, rawS || 0);
       }
     }
   }
 
-  const d = new Date(str);
+  const d = new Date(clean);
   return isNaN(d.getTime()) ? null : d;
 }
 
