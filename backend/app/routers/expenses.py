@@ -106,8 +106,13 @@ def delete_expense(
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
-    if expense.status != "PENDING":
-        raise HTTPException(status_code=400, detail="Cannot delete non-pending expense")
+
+    is_admin_or_hr = current_user.role.value in ["SUPER_ADMIN", "HR", "MANAGER"]
+    is_owner = current_user.employee and expense.employee_id == current_user.employee.id
+
+    if not (is_admin_or_hr or (is_owner and expense.status == "PENDING")):
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this expense record")
+
     db.delete(expense)
     db.commit()
     return {"detail": "Expense deleted"}
