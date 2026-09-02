@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Plus, Check, X, Trash2, Download, DollarSign, Upload, Paperclip,
+  Plus, Check, X, Download, DollarSign, Upload, Paperclip,
   FileText, ExternalLink, Eye, Building2
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -178,12 +178,6 @@ export default function Expenses() {
 
   const updateStatus = async (id: string, status: string) => {
     await api.patch(`/api/expenses/${id}/status`, { status }).catch(() => {});
-    load();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this expense request?")) return;
-    await api.delete(`/api/expenses/${id}`).catch(() => {});
     load();
   };
 
@@ -456,18 +450,31 @@ export default function Expenses() {
 
                 {canApprove && (
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-1">
-                      {r.status === "PENDING" && (
+                    <div className="flex items-center gap-1.5">
+                      {r.status === "PENDING" ? (
                         <>
-                          <button onClick={() => updateStatus(r.id, "APPROVED")} className="flex items-center gap-1 rounded px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition"><Check size={11} /> Approve</button>
-                          <button onClick={() => updateStatus(r.id, "REJECTED")} className="flex items-center gap-1 rounded px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition"><X size={11} /> Reject</button>
+                          <button
+                            onClick={() => updateStatus(r.id, "APPROVED")}
+                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition shadow-sm"
+                          >
+                            <Check size={12} /> Approve
+                          </button>
+                          <button
+                            onClick={() => updateStatus(r.id, "REJECTED")}
+                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition shadow-sm"
+                          >
+                            <X size={12} /> Reject
+                          </button>
                         </>
-                      )}
-                      {r.status === "APPROVED" && (
-                        <button onClick={() => updateStatus(r.id, "PAID")} className="flex items-center gap-1 rounded px-2.5 py-1 bg-blue-100 text-blue-700 font-semibold text-xs hover:bg-blue-200 transition">Mark Paid</button>
-                      )}
-                      {r.status === "PENDING" && (
-                        <button onClick={() => handleDelete(r.id)} className="p-1 text-slate-400 hover:text-red-500 transition" title="Delete expense"><Trash2 size={14} /></button>
+                      ) : r.status === "APPROVED" ? (
+                        <button
+                          onClick={() => updateStatus(r.id, "PAID")}
+                          className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-blue-100 text-blue-700 font-semibold text-xs hover:bg-blue-200 transition shadow-sm"
+                        >
+                          Mark Paid
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium">—</span>
                       )}
                     </div>
                   </td>
