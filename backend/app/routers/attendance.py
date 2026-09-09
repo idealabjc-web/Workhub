@@ -278,13 +278,17 @@ def ensure_sunday_week_offs(db: Session, year: int, month: int, employee_id: Opt
     if not sundays or not employees:
         return
 
+    emp_ids = [emp.id for emp in employees]
+    existing_records = db.query(models.Attendance).filter(
+        models.Attendance.employee_id.in_(emp_ids),
+        models.Attendance.date.in_(sundays),
+    ).all()
+    existing_map = {(att.employee_id, att.date): att for att in existing_records}
+
     added = False
     for emp in employees:
         for sunday_date in sundays:
-            existing = db.query(models.Attendance).filter(
-                models.Attendance.employee_id == emp.id,
-                models.Attendance.date == sunday_date,
-            ).first()
+            existing = existing_map.get((emp.id, sunday_date))
             if not existing:
                 db.add(models.Attendance(
                     employee_id=emp.id,

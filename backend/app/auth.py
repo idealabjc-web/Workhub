@@ -19,8 +19,12 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    pw_bytes = plain.encode("utf-8")[:_MAX_BCRYPT_BYTES]
-    return bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
+    try:
+        pw_bytes = plain.encode("utf-8")[:_MAX_BCRYPT_BYTES]
+        return bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
+    except Exception:
+        return False
+
 
 
 def create_access_token(data: dict, expires_minutes: Optional[int] = None) -> str:
