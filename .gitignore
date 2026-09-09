@@ -24,3 +24,10 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 *.log
+
+# Data files & one-off scripts
+backend/*.json
+backend/js_file.js
+backend/js_urls.txt
+backend/query_db.py
+backend/sync_live_data.py
