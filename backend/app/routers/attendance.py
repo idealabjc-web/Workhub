@@ -292,6 +292,8 @@ def ensure_sunday_week_offs(db: Session, year: int, month: int, employee_id: Opt
     added = False
     for emp in employees:
         for sunday_date in sundays:
+            if emp.date_of_joining and sunday_date < emp.date_of_joining:
+                continue
             existing = existing_map.get((emp.id, sunday_date))
             if not existing:
                 db.add(models.Attendance(
