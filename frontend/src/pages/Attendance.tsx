@@ -52,6 +52,14 @@ const ABBR_TO_STATUS: Record<string, string> = {
   P: "PRESENT", A: "ABSENT", L: "LEAVE", HD: "HALF_DAY", WFH: "WFH", H: "HOLIDAY", WO: "WEEK_OFF",
 };
 
+function getTodayDateStr(): string {
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const dy = String(now.getDate()).padStart(2, "0");
+  return `${yr}-${mo}-${dy}`;
+}
+
 function formatDateMDY(dateStr: string): string {
   if (!dateStr) return "—";
   const parts = dateStr.split("-");
@@ -147,12 +155,12 @@ export default function Attendance() {
 
   const [activeTab, setActiveTab] = useState<"personal" | "all_employees" | "pagara" | "corrections">("personal");
   const [viewMode, setViewMode] = useState<"day" | "month">("day");
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
   const [allEmployees, setAllEmployees] = useState<Array<{ id: string; employee_number: string; first_name: string; last_name: string; branch: string }>>([]);
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [monthlyData, setMonthlyData] = useState<MonthlyData | null>(null);
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(() => getTodayDateStr().slice(0, 7));
   const [branchFilter, setBranchFilter] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -166,7 +174,7 @@ export default function Attendance() {
   // Correction Request State
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
-  const [corrForm, setCorrForm] = useState({ date: new Date().toISOString().slice(0, 10), requested_status: "PRESENT", reason: "" });
+  const [corrForm, setCorrForm] = useState({ date: getTodayDateStr(), requested_status: "PRESENT", reason: "" });
 
   // Excel Import Modal
   const [showImportModal, setShowImportModal] = useState(false);
@@ -175,7 +183,7 @@ export default function Attendance() {
   // Bulk Time Change Modal
   const [showBulkTimeModal, setShowBulkTimeModal] = useState(false);
   const [bulkTimeForm, setBulkTimeForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getTodayDateStr(),
     branch: "",
     check_in: "09:30",
     check_out: "18:30",
@@ -294,6 +302,7 @@ export default function Attendance() {
 
   const loadDayAttendance = () => {
     setLoading(true);
+    setRows([]);
     if (allEmployees.length === 0) {
       loadEmployeesList();
     }
@@ -317,6 +326,12 @@ export default function Attendance() {
   const loadCorrections = () => {
     api.get("/api/attendance/corrections").then((r) => setCorrections(r.data)).catch(() => {});
   };
+
+  useEffect(() => {
+    if (isHR) {
+      loadEmployeesList();
+    }
+  }, [isHR]);
 
   useEffect(() => {
     if (activeTab === "personal") loadPersonal();
@@ -349,7 +364,11 @@ export default function Attendance() {
     }
 
     const attMap = new Map<string, AttendanceRow>();
-    rows.forEach((r) => attMap.set(r.employee_id, r));
+    rows.forEach((r) => {
+      if (r.date === selectedDate) {
+        attMap.set(r.employee_id, r);
+      }
+    });
 
     const parts = selectedDate.split("-");
     const yr = parseInt(parts[0], 10);
@@ -371,7 +390,7 @@ export default function Attendance() {
         id: `virtual-${emp.id}`,
         employee_id: emp.id,
         date: selectedDate,
-        status: isSunday ? "WEEK_OFF" : "ABSENT",
+        status: isSunday ? "WEEK_OFF" : "",
         is_late: false,
         employee_name: `${emp.first_name} ${emp.last_name}`,
         employee_number: emp.employee_number,
@@ -728,7 +747,7 @@ export default function Attendance() {
                 <ChevronRight size={15} />
               </button>
               <button
-                onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                onClick={() => setSelectedDate(getTodayDateStr())}
                 className="btn-secondary text-xs px-2.5 py-1.5 font-medium ml-1"
               >
                 Today
@@ -855,15 +874,19 @@ export default function Attendance() {
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
+                  const cfg = r.status ? (STATUS_CODES[r.status] || null) : null;
                   return (
                     <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                       <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.date)}</td>
                       <td className="px-4 py-3.5 text-slate-400 font-medium">{formatDayName(r.date)}</td>
                       <td className="px-4 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
-                          {cfg.label}
-                        </span>
+                        {cfg ? (
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
+                            {cfg.label}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-medium text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
                       <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>
@@ -915,7 +938,7 @@ export default function Attendance() {
                 </thead>
                 <tbody>
                   {(viewMode === "day" ? daySheetRows : filteredRows).map((r) => {
-                    const cfg = STATUS_CODES[r.status] || STATUS_CODES.PRESENT;
+                    const cfg = r.status ? (STATUS_CODES[r.status] || null) : null;
                     const isVirtual = r.id.startsWith("virtual-");
                     return (
                       <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -926,9 +949,13 @@ export default function Attendance() {
                         <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">{formatDateMDY(r.date)}</td>
                         <td className="px-4 py-3.5 text-slate-400 font-medium">{formatDayName(r.date)}</td>
                         <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
-                            {cfg.label}
-                          </span>
+                          {cfg ? (
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md border font-semibold text-[11px] ${cfg.cls}`}>
+                              {cfg.label}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-medium text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_in)}</td>
                         <td className="px-4 py-3.5 font-medium text-slate-700 dark:text-slate-300">{formatLocalTime(r.check_out)}</td>

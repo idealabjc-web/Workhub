@@ -19,6 +19,10 @@ def ist_now() -> datetime:
     """Return current time in IST as a naive datetime (no tzinfo)."""
     return datetime.now(IST).replace(tzinfo=None)
 
+def ist_today() -> date:
+    """Return current date in Indian Standard Time (UTC+5:30)."""
+    return datetime.now(IST).date()
+
 # Default Office Locations (Branch -> {name, lat, lng, radius_meters})
 OFFICE_LOCATIONS = {
     "IDEALAB": {
@@ -100,7 +104,7 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
         branch=models.BranchEnum.IDEALAB,
         status=models.EmployeeStatusEnum.ACTIVE,
         employment_type=models.EmploymentTypeEnum.FULL_TIME,
-        date_of_joining=date.today(),
+        date_of_joining=ist_today(),
     )
     db.add(emp)
     db.commit()
@@ -191,7 +195,7 @@ def get_today_status(
     current_user: models.User = Depends(get_current_user),
 ):
     emp = get_or_create_user_employee(db, current_user)
-    today = date.today()
+    today = ist_today()
     att = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
         models.Attendance.date == today,
@@ -450,7 +454,7 @@ def check_in(
     current_user: models.User = Depends(get_current_user),
 ):
     emp = get_or_create_user_employee(db, current_user)
-    today = date.today()
+    today = ist_today()
     existing = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
         models.Attendance.date == today,
@@ -503,7 +507,7 @@ def check_out(
     current_user: models.User = Depends(get_current_user),
 ):
     emp = get_or_create_user_employee(db, current_user)
-    today = date.today()
+    today = ist_today()
     att = db.query(models.Attendance).filter(
         models.Attendance.employee_id == emp.id,
         models.Attendance.date == today,
@@ -565,7 +569,7 @@ def edit_attendance_time(
     # If still not found and we have employee_id & date, create a new record
     if not att:
         emp_id = payload.employee_id or (id.replace("virtual-", "") if id.startswith("virtual-") else None)
-        rec_date: date = payload.date or date.today()
+        rec_date: date = payload.date or ist_today()
         if not emp_id:
             raise HTTPException(status_code=404, detail="Attendance record not found and employee ID not provided")
         
