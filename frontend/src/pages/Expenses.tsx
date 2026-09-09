@@ -67,7 +67,7 @@ function formatDateMDY(dateStr?: string): string {
 export default function Expenses() {
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
+  const [monthFilter, setMonthFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -206,7 +206,7 @@ export default function Expenses() {
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Expenses");
-    XLSX.writeFile(wb, `expenses_${monthFilter}.xlsx`);
+    XLSX.writeFile(wb, monthFilter ? `expenses_${monthFilter}.xlsx` : "expenses_all.xlsx");
   };
 
   return (
