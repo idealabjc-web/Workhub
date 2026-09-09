@@ -30,3 +30,7 @@ init_db()
 # Mangum wraps the ASGI FastAPI app for serverless (AWS Lambda / Vercel)
 handler = Mangum(app, lifespan="off")
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+
