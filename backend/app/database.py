@@ -13,7 +13,14 @@ if env_path.exists():
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
 
-DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./hr_portal.db"
+# Production Neon PostgreSQL database connection pooler URL
+DEFAULT_DATABASE_URL = (
+    "postgresql://neondb_owner:npg_NHY3C9uGfWki@ep-snowy-cherry-azfm1y9n-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL or DATABASE_URL.startswith("sqlite"):
+    DATABASE_URL = DEFAULT_DATABASE_URL
 
 IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 

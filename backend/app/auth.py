@@ -5,7 +5,7 @@ from typing import Optional
 import bcrypt
 from jose import jwt
 
-JWT_SECRET = os.getenv("JWT_SECRET", "change-this-secret-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET", "idealab-workhub-super-secret-jwt-key-2026")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "525600"))
 

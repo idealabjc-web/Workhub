@@ -31,3 +31,5 @@ backend/js_file.js
 backend/js_urls.txt
 backend/query_db.py
 backend/sync_live_data.py
+
+.vercel
