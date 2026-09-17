@@ -44,3 +44,49 @@ def require_roles(allowed_roles: List[str]):
         return current_user
 
     return role_checker
+
+
+LEAVE_APPROVER_USER_ID = "9cea7aa5-cf22-4c8f-9f62-558b11ab27c5"
+LEAVE_APPROVER_EMP_ID = "eeb58c93-cdb7-4030-9f5e-7210bf43d68f"
+LEAVE_APPROVER_EMP_NUM = "SA1002"
+LEAVE_APPROVER_EMAILS = {"superadmin@idealab.com", "dr.prasadkovvuru@gmail.com"}
+
+
+def is_leave_approver_user(user: models.User) -> bool:
+    """Checks if the user is Dr Prasad Kovvuru (CEO, #SA1002), the sole authorized leave approver."""
+    if not user:
+        return False
+
+    if user.id == LEAVE_APPROVER_USER_ID:
+        return True
+
+    user_email = (user.email or "").strip().lower()
+    if user_email in LEAVE_APPROVER_EMAILS:
+        return True
+
+    if user.employee:
+        emp = user.employee
+        if emp.id == LEAVE_APPROVER_EMP_ID:
+            return True
+        if (emp.employee_number or "").strip().upper() == LEAVE_APPROVER_EMP_NUM:
+            return True
+        emp_email = (emp.email or "").strip().lower()
+        if emp_email in LEAVE_APPROVER_EMAILS:
+            return True
+        if (emp.designation or "").strip().upper() == "CEO":
+            return True
+
+    return False
+
+
+def require_leave_approver():
+    def approver_checker(current_user: models.User = Depends(get_current_user)):
+        if not is_leave_approver_user(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the designated executive (Dr Prasad Kovvuru) is authorized to approve or reject employee leave requests.",
+            )
+        return current_user
+
+    return approver_checker
+

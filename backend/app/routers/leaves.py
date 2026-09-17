@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_current_user, require_leave_approver
 
 router = APIRouter(prefix="/api/leaves", tags=["leaves"])
 
@@ -56,7 +56,7 @@ def update_leave_status(
     leave_id: str,
     payload: schemas.LeaveStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "MANAGER"])),
+    current_user: models.User = Depends(require_leave_approver()),
 ):
     leave = db.query(models.Leave).filter(models.Leave.id == leave_id).first()
     if not leave:

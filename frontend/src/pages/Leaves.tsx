@@ -64,7 +64,19 @@ export default function Leaves() {
   const [searchQuery, setSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { user } = useAuth();
-  const canApprove = user && ["SUPER_ADMIN", "HR", "MANAGER"].includes(user.role);
+
+  const LEAVE_APPROVER_EMAILS = ["superadmin@idealab.com", "dr.prasadkovvuru@gmail.com"];
+  const LEAVE_APPROVER_EMP_ID = "eeb58c93-cdb7-4030-9f5e-7210bf43d68f";
+  const LEAVE_APPROVER_EMP_NUM = "SA1002";
+
+  const isLeaveApprover = !!(
+    user?.can_approve_leaves ||
+    user?.employee_number === LEAVE_APPROVER_EMP_NUM ||
+    user?.employee_id === LEAVE_APPROVER_EMP_ID ||
+    (user?.email && LEAVE_APPROVER_EMAILS.includes(user.email.toLowerCase()))
+  );
+
+  const canApprove = isLeaveApprover;
 
   const canEditLeave = (r: LeaveRow) => {
     if (canApprove) return true;

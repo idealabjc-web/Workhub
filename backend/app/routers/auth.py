@@ -8,7 +8,7 @@ from app import models, schemas
 from app.auth import create_access_token, verify_password
 from app.database import get_db
 
-from app.deps import get_current_user
+from app.deps import get_current_user, is_leave_approver_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -30,9 +30,11 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": user.id, "role": user.role.value})
     full_name = None
     employee_id = None
+    employee_number = None
     if user.employee:
         full_name = f"{user.employee.first_name} {user.employee.last_name}"
         employee_id = user.employee.id
+        employee_number = user.employee.employee_number
 
     # Admins and HR are always considered profile-complete
     profile_complete = getattr(user, "profile_complete", False) or user.role.value in ("SUPER_ADMIN", "HR", "MANAGER", "FINANCE")
@@ -44,6 +46,8 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
         employee_id=employee_id,
         full_name=full_name,
         profile_complete=profile_complete,
+        can_approve_leaves=is_leave_approver_user(user),
+        employee_number=employee_number,
     )
 
 
@@ -81,10 +85,12 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
         token = create_access_token({"sub": user.id, "role": user.role.value})
         full_name = None
         employee_id = None
+        employee_number = None
 
         if user.employee:
             full_name = f"{user.employee.first_name} {user.employee.last_name}"
             employee_id = user.employee.id
+            employee_number = user.employee.employee_number
         elif info.get("name"):
             full_name = info.get("name")
 
@@ -97,6 +103,8 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
             employee_id=employee_id,
             full_name=full_name,
             profile_complete=profile_complete,
+            can_approve_leaves=is_leave_approver_user(user),
+            employee_number=employee_number,
         )
 
     except HTTPException:
@@ -109,9 +117,11 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
 def get_current_user_auth(current_user: models.User = Depends(get_current_user)):
     full_name = None
     employee_id = None
+    employee_number = None
     if current_user.employee:
         full_name = f"{current_user.employee.first_name} {current_user.employee.last_name}"
         employee_id = current_user.employee.id
+        employee_number = current_user.employee.employee_number
 
     profile_complete = getattr(current_user, "profile_complete", False) or current_user.role.value in ("SUPER_ADMIN", "HR", "MANAGER", "FINANCE")
 
@@ -124,5 +134,7 @@ def get_current_user_auth(current_user: models.User = Depends(get_current_user))
         employee_id=employee_id,
         full_name=full_name,
         profile_complete=profile_complete,
+        can_approve_leaves=is_leave_approver_user(current_user),
+        employee_number=employee_number,
     )
 

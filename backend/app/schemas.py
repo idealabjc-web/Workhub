@@ -22,6 +22,8 @@ class TokenResponse(BaseModel):
     employee_id: Optional[str] = None
     full_name: Optional[str] = None
     profile_complete: bool = True
+    can_approve_leaves: bool = False
+    employee_number: Optional[str] = None
 
 
 class UserOut(BaseModel):
