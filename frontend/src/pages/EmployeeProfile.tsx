@@ -624,7 +624,6 @@ export default function EmployeeProfile() {
               <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Leave Balances by Category</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {leaveBalances.map((lb) => {
-                  const rem = Math.max(lb.total - lb.used, 0);
                   return (
                     <div key={lb.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60">
                       <div className="flex items-center justify-between">
@@ -632,10 +631,6 @@ export default function EmployeeProfile() {
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lb.used > 0 ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
                           {lb.used} taken
                         </span>
-                      </div>
-                      <div className="mt-2 flex items-baseline justify-between text-xs">
-                        <span className="text-slate-400">Available:</span>
-                        <span className="font-extrabold text-slate-700 dark:text-slate-300">{rem} / {lb.total} days</span>
                       </div>
                     </div>
                   );
