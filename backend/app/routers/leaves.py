@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -138,6 +138,29 @@ def sync_employee_leave_balances(db: Session, employee: models.Employee):
         .all()
     )
 
+    # Fetch all attendance records marked as LEAVE
+    attendance_leaves = (
+        db.query(models.Attendance)
+        .filter(
+            models.Attendance.employee_id == employee.id,
+            models.Attendance.status == models.AttendanceStatusEnum.LEAVE,
+        )
+        .all()
+    )
+
+    # Calculate dates covered by approved system leaves
+    covered_dates = set()
+    for l in approved_leaves:
+        current = l.start_date
+        while current <= l.end_date:
+            covered_dates.add(current)
+            current += timedelta(days=1)
+
+    # Calculate how many attendance LEAVE days are NOT covered by approved system leaves
+    uncovered_attendance_leaves = sum(
+        1 for att in attendance_leaves if att.date not in covered_dates
+    )
+
     for lt in models.LeaveTypeEnum:
         balance = db.query(models.LeaveBalance).filter(
             models.LeaveBalance.employee_id == employee.id,
@@ -149,6 +172,10 @@ def sync_employee_leave_balances(db: Session, employee: models.Employee):
             for l in approved_leaves
             if l.leave_type == lt
         )
+
+        # Add uncovered attendance leaves to CASUAL balance as a catch-all
+        if lt == models.LeaveTypeEnum.CASUAL:
+            used_days += uncovered_attendance_leaves
 
         if balance:
             balance.total = quota

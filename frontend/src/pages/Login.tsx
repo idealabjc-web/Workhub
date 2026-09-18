@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Mail, Lock } from "lucide-react";
+import { Building2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
 
@@ -9,6 +9,7 @@ const GOOGLE_CLIENT_ID = "957026139388-q05hohgt3dlsmhjf3fkdvv7us94j7rhl.apps.goo
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const { user, login, loginWithGoogle, loading } = useAuth();
   const navigate = useNavigate();
@@ -114,25 +115,44 @@ export default function Login() {
                 <input
                   type="email"
                   required
-                  className="input text-sm"
+                  className="input text-sm w-full"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email ID"
                 />
               </div>
               <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  <Lock size={14} className="text-brand-500" />
-                  Password
+                <label className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <Lock size={14} className="text-brand-500" />
+                    Password
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 lowercase font-normal"
+                  >
+                    {showPassword ? <><EyeOff size={13} /> hide</> : <><Eye size={13} /> show</>}
+                  </button>
                 </label>
-                <input
-                  type="password"
-                  required
-                  className="input text-sm"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="input text-sm w-full pr-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
               {error && (
                 <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-3.5 py-2.5 rounded-xl font-medium">
