@@ -218,12 +218,71 @@ def get_all_balances(
             )
         return []
 
-    # Sync all employees if admin/HR
-    all_emps = db.query(models.Employee).all()
-    for emp in all_emps:
-        sync_employee_leave_balances(db, emp)
-
     return db.query(models.LeaveBalance).order_by(models.LeaveBalance.employee_id, models.LeaveBalance.leave_type).all()
+
+
+@router.get("/balances/summary", response_model=List[schemas.LeaveBalanceSummary])
+def get_balances_summary(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return per-employee leave balance summary efficiently in batch."""
+    from collections import defaultdict
+
+    all_emps = (
+        db.query(models.Employee)
+        .options(joinedload(models.Employee.department))
+        .all()
+    )
+
+    all_balances = db.query(models.LeaveBalance).all()
+    balances_by_emp = defaultdict(list)
+    for b in all_balances:
+        balances_by_emp[b.employee_id].append(b)
+
+    results = []
+    for emp in all_emps:
+        balances = balances_by_emp.get(emp.id, [])
+
+        gender_str = str(emp.gender) if emp.gender is not None else None
+        quota = get_annual_leaves_by_gender(gender_str)
+
+        total_used = sum((b.used or 0) for b in balances)
+        remaining = max(quota - total_used, 0)
+
+        type_used = {}
+        for b in balances:
+            lt_val = b.leave_type.value if hasattr(b.leave_type, "value") else str(b.leave_type)
+            type_used[lt_val] = (b.used or 0)
+
+        branch_val = ""
+        if emp.branch:
+            branch_val = emp.branch.value if hasattr(emp.branch, "value") else str(emp.branch)
+
+        dept_name = ""
+        if emp.department:
+            dept_name = emp.department.name if hasattr(emp.department, "name") else str(emp.department)
+
+        results.append(schemas.LeaveBalanceSummary(
+            employee_id=emp.id,
+            employee_name=f"{emp.first_name} {emp.last_name}".strip(),
+            employee_number=emp.employee_number or "",
+            branch=branch_val,
+            department=dept_name,
+            designation=emp.designation or "",
+            total_quota=quota,
+            total_used=total_used,
+            remaining=remaining,
+            casual_used=type_used.get("CASUAL", 0),
+            sick_used=type_used.get("SICK", 0),
+            paid_used=type_used.get("PAID", 0),
+            unpaid_used=type_used.get("UNPAID", 0),
+            maternity_used=type_used.get("MATERNITY", 0),
+            paternity_used=type_used.get("PATERNITY", 0),
+            optional_used=type_used.get("OPTIONAL", 0),
+        ))
+
+    return results
 
 
 @router.delete("/{leave_id}")

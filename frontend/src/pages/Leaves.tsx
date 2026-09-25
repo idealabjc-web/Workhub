@@ -21,6 +21,25 @@ interface LeaveRow {
 
 interface LeaveBalance { id: string; leave_type: string; total: number; used: number; }
 
+interface LeaveBalanceSummary {
+  employee_id: string;
+  employee_name: string;
+  employee_number: string;
+  branch?: string;
+  department?: string;
+  designation?: string;
+  total_quota: number;
+  total_used: number;
+  remaining: number;
+  casual_used: number;
+  sick_used: number;
+  paid_used: number;
+  unpaid_used: number;
+  maternity_used: number;
+  paternity_used: number;
+  optional_used: number;
+}
+
 const STATUS_COLOR: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300",
   MANAGER_APPROVED: "bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300",
@@ -63,6 +82,16 @@ export default function Leaves() {
   const [branchFilter, setBranchFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Leave Balance Modal state
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [balanceSummaries, setBalanceSummaries] = useState<LeaveBalanceSummary[]>([]);
+  const [loadingBalances, setLoadingBalances] = useState(false);
+  const [modalSearch, setModalSearch] = useState("");
+  const [modalBranch, setModalBranch] = useState("");
+
   const { user } = useAuth();
 
   const LEAVE_APPROVER_EMAILS = ["superadmin@idealab.com", "dr.prasadkovvuru@gmail.com"];
@@ -163,24 +192,31 @@ export default function Leaves() {
   }, [rows, branchFilter, searchQuery]);
 
   const exportLeavesExcel = () => {
-    const exportData = filteredRows.map((r) => ({
-      "Employee #": r.employee_number || "—",
-      "Employee Name": r.employee_name || "—",
-      "Branch": r.branch || "—",
-      "Leave Type": LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type,
-      "From Date": formatDateMDY(r.start_date),
-      "To Date": formatDateMDY(r.end_date),
-      "Days": daysBetween(r.start_date, r.end_date),
-      "Reason": r.reason || "—",
-      "Applied Date": formatDateMDY(r.applied_at),
-      "Status": r.status || "—",
-      "Comments": r.comments || "—",
-    }));
+    setIsExporting(true);
+    setTimeout(() => {
+      try {
+        const exportData = filteredRows.map((r) => ({
+          "Employee #": r.employee_number || "—",
+          "Employee Name": r.employee_name || "—",
+          "Branch": r.branch || "—",
+          "Leave Type": LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type,
+          "From Date": formatDateMDY(r.start_date),
+          "To Date": formatDateMDY(r.end_date),
+          "Days": daysBetween(r.start_date, r.end_date),
+          "Reason": r.reason || "—",
+          "Applied Date": formatDateMDY(r.applied_at),
+          "Status": r.status || "—",
+          "Comments": r.comments || "—",
+        }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Leaves");
-    XLSX.writeFile(wb, `Leaves_Report_${statusFilter || "All"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Leaves");
+        XLSX.writeFile(wb, `Leaves_Report_${statusFilter || "All"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      } finally {
+        setIsExporting(false);
+      }
+    }, 50);
   };
 
   const balanceColor = (used: number, total: number) => {
@@ -188,6 +224,69 @@ export default function Leaves() {
     if (pct >= 0.9) return "text-red-600";
     if (pct >= 0.7) return "text-amber-600";
     return "text-emerald-600";
+  };
+
+  // Fetch Leave Balance Summary for Modal
+  const fetchLeaveBalanceSummary = async () => {
+    setLoadingBalances(true);
+    try {
+      const res = await api.get("/api/leaves/balances/summary");
+      setBalanceSummaries(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to load leave balance summary");
+    } finally {
+      setLoadingBalances(false);
+    }
+  };
+
+  const handleOpenLeaveBalanceModal = () => {
+    setShowBalanceModal(true);
+    fetchLeaveBalanceSummary();
+  };
+
+  const filteredBalanceSummaries = useMemo(() => {
+    return balanceSummaries.filter((s) => {
+      if (modalBranch && s.branch !== modalBranch) return false;
+      if (!modalSearch.trim()) return true;
+      const q = modalSearch.toLowerCase();
+      return (
+        s.employee_name.toLowerCase().includes(q) ||
+        s.employee_number.toLowerCase().includes(q) ||
+        (s.department && s.department.toLowerCase().includes(q)) ||
+        (s.designation && s.designation.toLowerCase().includes(q))
+      );
+    });
+  }, [balanceSummaries, modalBranch, modalSearch]);
+
+  const exportLeaveBalanceSummaryExcel = (dataToExport = filteredBalanceSummaries) => {
+    const exportData = dataToExport.map((s) => ({
+      "Employee #": s.employee_number || "—",
+      "Employee Name": s.employee_name || "—",
+      "Branch": s.branch || "—",
+      "Department": s.department || "—",
+      "Designation": s.designation || "—",
+      "Annual Quota": s.total_quota,
+      "Total Leaves Taken": s.total_used,
+      "Leaves Remaining": s.remaining,
+      "Casual Used": s.casual_used,
+      "Sick Used": s.sick_used,
+      "Paid Used": s.paid_used,
+      "Unpaid Used": s.unpaid_used,
+      "Maternity Used": s.maternity_used,
+      "Paternity Used": s.paternity_used,
+      "Optional Used": s.optional_used,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    const colWidths = Object.keys(exportData[0] || {}).map((key) => ({
+      wch: Math.max(key.length + 2, ...exportData.map((row: any) => String(row[key] ?? "").length + 2)),
+    }));
+    ws["!cols"] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leave Balance Summary");
+    XLSX.writeFile(wb, `Leave_Balance_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
@@ -201,10 +300,18 @@ export default function Leaves() {
           <button
             type="button"
             className="btn-secondary gap-2"
-            onClick={exportLeavesExcel}
-            title="Export leave records to Excel"
+            onClick={handleOpenLeaveBalanceModal}
+            title="View per-employee leave balances"
           >
-            <Download size={16} /> Export to Excel
+            <FileText size={16} /> Leave Balance
+          </button>
+          <button
+            type="button"
+            className="btn-secondary gap-2"
+            onClick={() => setShowExportModal(true)}
+            title="Preview and Export leave records"
+          >
+            <Download size={16} /> Export Leaves
           </button>
           <button className="btn-primary gap-2" onClick={() => setShowForm((s) => !s)}>
             <Plus size={16} /> Apply Leave
@@ -212,7 +319,7 @@ export default function Leaves() {
         </div>
       </div>
 
-      {/* Single Consolidated Leave Balance Summary Card */}
+      {/* Single Consolidated Leave Balance Summary Card for logged in user */}
       {balances.length > 0 && (() => {
         const totalQuota = balances[0].total;
         const totalUsed = balances.reduce((sum, b) => sum + (b.used || 0), 0);
@@ -396,6 +503,128 @@ export default function Leaves() {
         </table>
       </div>
 
+      {/* LEAVE BALANCE SUMMARY MODAL */}
+      {showBalanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setShowBalanceModal(false)}>
+          <div className="card p-6 max-w-5xl w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Leave Balance Summary</h3>
+                  <p className="text-xs text-slate-400">View and export per-employee leave quotas & usage</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-primary text-xs gap-1.5 px-3 py-1.5"
+                  onClick={() => exportLeaveBalanceSummaryExcel(filteredBalanceSummaries)}
+                  disabled={loadingBalances || filteredBalanceSummaries.length === 0}
+                  title="Download current leave balance summary as Excel"
+                >
+                  <Download size={14} /> Export to Excel
+                </button>
+                <button onClick={() => setShowBalanceModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter and Search controls inside Modal */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search employee, dept, designation..."
+                    className="input pl-9 w-64 text-xs"
+                    value={modalSearch}
+                    onChange={(e) => setModalSearch(e.target.value)}
+                  />
+                </div>
+                <select className="input w-36 text-xs" value={modalBranch} onChange={(e) => setModalBranch(e.target.value)}>
+                  <option value="">All Branches</option>
+                  <option value="IDEALAB">Lotus Idealab</option>
+                  <option value="UGC">Lotus UGC</option>
+                  <option value="VIZAG">Lotus Vizag</option>
+                </select>
+              </div>
+              <p className="text-xs text-slate-400 font-medium">
+                Showing <span className="font-bold text-slate-700 dark:text-slate-200">{filteredBalanceSummaries.length}</span> employee(s)
+              </p>
+            </div>
+
+            {/* Table Content */}
+            <div className="overflow-auto max-h-[55vh] border border-slate-200 dark:border-slate-800 rounded-xl">
+              {loadingBalances ? (
+                <div className="p-12 text-center text-slate-400 text-sm">
+                  Loading leave balance summary...
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 text-slate-400 uppercase font-bold dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-3.5 py-2.5">Employee</th>
+                      <th className="px-3.5 py-2.5">Branch / Dept</th>
+                      <th className="px-3.5 py-2.5 text-center">Quota</th>
+                      <th className="px-3.5 py-2.5 text-center">Used</th>
+                      <th className="px-3.5 py-2.5 text-center">Remaining</th>
+                      <th className="px-3.5 py-2.5 text-center">Casual</th>
+                      <th className="px-3.5 py-2.5 text-center">Sick</th>
+                      <th className="px-3.5 py-2.5 text-center">Paid</th>
+                      <th className="px-3.5 py-2.5 text-center">Unpaid</th>
+                      <th className="px-3.5 py-2.5 text-center">Maternity</th>
+                      <th className="px-3.5 py-2.5 text-center">Paternity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredBalanceSummaries.map((s) => (
+                      <tr key={s.employee_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        <td className="px-3.5 py-3">
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{s.employee_name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">{s.employee_number || "—"}</p>
+                        </td>
+                        <td className="px-3.5 py-3">
+                          <p className="font-semibold text-slate-700 dark:text-slate-200">{s.branch || "—"}</p>
+                          <p className="text-[10px] text-slate-400">{s.department || s.designation || "—"}</p>
+                        </td>
+                        <td className="px-3.5 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{s.total_quota}</td>
+                        <td className="px-3.5 py-3 text-center font-bold text-amber-600 dark:text-amber-400">{s.total_used}</td>
+                        <td className="px-3.5 py-3 text-center font-extrabold text-emerald-600 dark:text-emerald-400">{s.remaining}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.casual_used}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.sick_used}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.paid_used}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.unpaid_used}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.maternity_used}</td>
+                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.paternity_used}</td>
+                      </tr>
+                    ))}
+                    {filteredBalanceSummaries.length === 0 && (
+                      <tr>
+                        <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                          No leave balances found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button type="button" onClick={() => setShowBalanceModal(false)} className="btn-secondary text-xs px-4 py-2">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LEAVE DETAILS MODAL */}
       {selectedLeave && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setSelectedLeave(null)}>
@@ -561,6 +790,88 @@ export default function Leaves() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* EXPORT LEAVES PREVIEW MODAL */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setShowExportModal(false)}>
+          <div className="card p-6 max-w-5xl w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Export Leaves Preview</h3>
+                  <p className="text-xs text-slate-400">Preview the filtered leave records before exporting</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-primary text-xs gap-1.5 px-3 py-1.5"
+                  onClick={exportLeavesExcel}
+                  disabled={isExporting || filteredRows.length === 0}
+                  title="Download leave records as Excel"
+                >
+                  <Download size={14} /> {isExporting ? "Exporting..." : "Download Excel"}
+                </button>
+                <button onClick={() => setShowExportModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto max-h-[55vh] border border-slate-200 dark:border-slate-800 rounded-xl">
+              <table className="w-full text-left text-xs">
+                 <thead className="border-b border-slate-200 text-slate-400 uppercase font-bold dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 sticky top-0 z-10">
+                   <tr>
+                     <th className="px-3.5 py-2.5">Employee</th>
+                     <th className="px-3.5 py-2.5">Type</th>
+                     <th className="px-3.5 py-2.5">From Date</th>
+                     <th className="px-3.5 py-2.5">To Date</th>
+                     <th className="px-3.5 py-2.5 text-center">Days</th>
+                     <th className="px-3.5 py-2.5">Reason</th>
+                     <th className="px-3.5 py-2.5">Status</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                   {filteredRows.map((r) => (
+                     <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                       <td className="px-3.5 py-3">
+                         <p className="font-bold text-slate-800 dark:text-slate-100">{r.employee_name || "Staff Member"}</p>
+                         <p className="text-[10px] text-slate-400 font-mono">{r.employee_number || "—"}</p>
+                       </td>
+                       <td className="px-3.5 py-3 font-medium">{LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</td>
+                       <td className="px-3.5 py-3 text-slate-700 dark:text-slate-300">{formatDateMDY(r.start_date)}</td>
+                       <td className="px-3.5 py-3 text-slate-700 dark:text-slate-300">{formatDateMDY(r.end_date)}</td>
+                       <td className="px-3.5 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{daysBetween(r.start_date, r.end_date)}</td>
+                       <td className="px-3.5 py-3 text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{r.reason || "—"}</td>
+                       <td className="px-3.5 py-3">
+                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_COLOR[r.status] || ""}`}>
+                           {r.status.replace("_", " ")}
+                         </span>
+                       </td>
+                     </tr>
+                   ))}
+                   {filteredRows.length === 0 && (
+                     <tr>
+                       <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                         No leave records found to export
+                       </td>
+                     </tr>
+                   )}
+                 </tbody>
+              </table>
+            </div>
+            
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-xs text-slate-400 font-medium">Total {filteredRows.length} record(s) to export</p>
+              <button type="button" onClick={() => setShowExportModal(false)} className="btn-secondary text-xs px-4 py-2">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

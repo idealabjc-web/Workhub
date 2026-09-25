@@ -343,6 +343,25 @@ class LeaveBalanceOut(BaseModel):
         from_attributes = True
 
 
+class LeaveBalanceSummary(BaseModel):
+    employee_id: str
+    employee_name: str
+    employee_number: str
+    branch: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    total_quota: int
+    total_used: int
+    remaining: int
+    casual_used: int = 0
+    sick_used: int = 0
+    paid_used: int = 0
+    unpaid_used: int = 0
+    maternity_used: int = 0
+    paternity_used: int = 0
+    optional_used: int = 0
+
+
 # ── Payroll & Payslip ─────────────────────────────────────────────────────────
 
 class PayrollGenerateRequest(BaseModel):
