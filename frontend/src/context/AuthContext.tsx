@@ -8,6 +8,7 @@ export interface AuthUser {
   full_name?: string;
   profile_complete?: boolean;
   can_approve_leaves?: boolean;
+  can_approve_expenses?: boolean;
   employee_number?: string;
 }
 
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .get("/api/auth/me")
       .then((r) => {
         if (r.data) {
-          const { access_token, role, email, employee_id, full_name, profile_complete, can_approve_leaves, employee_number } = r.data;
+          const { access_token, role, email, employee_id, full_name, profile_complete, can_approve_leaves, can_approve_expenses, employee_number } = r.data;
           if (access_token) {
             localStorage.setItem("hr_token", access_token);
           }
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: full_name || user?.full_name,
             profile_complete: profile_complete !== undefined ? profile_complete : user?.profile_complete,
             can_approve_leaves: can_approve_leaves !== undefined ? can_approve_leaves : user?.can_approve_leaves,
+            can_approve_expenses: can_approve_expenses !== undefined ? can_approve_expenses : user?.can_approve_expenses,
             employee_number: employee_number || user?.employee_number,
           };
           if (updatedUser.role === "HR" && (!updatedUser.full_name || updatedUser.full_name === "Hr Staff" || updatedUser.full_name === "Hr")) {
@@ -87,9 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const res = await api.post("/api/auth/login", { email, password });
-      const { access_token, role, employee_id, full_name, profile_complete, can_approve_leaves, employee_number } = res.data;
+      const { access_token, role, employee_id, full_name, profile_complete, can_approve_leaves, can_approve_expenses, employee_number } = res.data;
       localStorage.setItem("hr_token", access_token);
-      const authUser: AuthUser = { email, role, employee_id, full_name, profile_complete, can_approve_leaves, employee_number };
+      const authUser: AuthUser = { email, role, employee_id, full_name, profile_complete, can_approve_leaves, can_approve_expenses, employee_number };
       localStorage.setItem("hr_user", JSON.stringify(authUser));
       setUser(authUser);
       return authUser;
@@ -102,9 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const res = await api.post("/api/auth/google", { token });
-      const { access_token, role, employee_id, full_name, profile_complete, can_approve_leaves, employee_number } = res.data;
+      const { access_token, role, employee_id, full_name, profile_complete, can_approve_leaves, can_approve_expenses, employee_number } = res.data;
       localStorage.setItem("hr_token", access_token);
-      const authUser: AuthUser = { email: res.data.email, role, employee_id, full_name, profile_complete, can_approve_leaves, employee_number };
+      const authUser: AuthUser = { email: res.data.email, role, employee_id, full_name, profile_complete, can_approve_leaves, can_approve_expenses, employee_number };
       localStorage.setItem("hr_user", JSON.stringify(authUser));
       setUser(authUser);
       return authUser;

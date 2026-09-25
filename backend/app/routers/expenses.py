@@ -1,11 +1,11 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_current_user, require_roles, is_expense_approver_user
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
 
@@ -85,11 +85,36 @@ def update_expense_status(
     expense_id: str,
     payload: schemas.ExpenseStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR", "FINANCE", "MANAGER"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+
+    target_status = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
+    target_status = target_status.upper()
+
+    # Expenses approval & rejection are strictly restricted to Dr Prasad Kovvuru (#SA1002)
+    if target_status in ["APPROVED", "REJECTED"]:
+        if not is_expense_approver_user(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Expenses approval should only be approved by Dr Prasad Kovvuru (#SA1002).",
+            )
+    elif target_status == "PAID":
+        # PAID status can be marked by Dr Prasad Kovvuru or FINANCE / SUPER_ADMIN
+        if not (is_expense_approver_user(current_user) or current_user.role.value in ["SUPER_ADMIN", "FINANCE"]):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to mark expenses as paid.",
+            )
+    else:
+        if not is_expense_approver_user(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to update expense status.",
+            )
+
     expense.status = payload.status
     expense.approved_by = current_user.id
     db.commit()

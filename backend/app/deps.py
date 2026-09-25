@@ -90,3 +90,27 @@ def require_leave_approver():
 
     return approver_checker
 
+
+EXPENSE_APPROVER_USER_ID = LEAVE_APPROVER_USER_ID
+EXPENSE_APPROVER_EMP_ID = LEAVE_APPROVER_EMP_ID
+EXPENSE_APPROVER_EMP_NUM = "SA1002"
+EXPENSE_APPROVER_EMAILS = LEAVE_APPROVER_EMAILS
+
+
+def is_expense_approver_user(user: models.User) -> bool:
+    """Checks if the user is Dr Prasad Kovvuru (#SA1002), the sole authorized expense approver."""
+    return is_leave_approver_user(user)
+
+
+def require_expense_approver():
+    def approver_checker(current_user: models.User = Depends(get_current_user)):
+        if not is_expense_approver_user(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Expenses approval should only be approved by Dr Prasad Kovvuru (#SA1002).",
+            )
+        return current_user
+
+    return approver_checker
+
+

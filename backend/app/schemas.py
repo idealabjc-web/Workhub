@@ -23,6 +23,7 @@ class TokenResponse(BaseModel):
     full_name: Optional[str] = None
     profile_complete: bool = True
     can_approve_leaves: bool = False
+    can_approve_expenses: bool = False
     employee_number: Optional[str] = None
 
 

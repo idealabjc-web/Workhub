@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
-from app.deps import get_current_user, require_leave_approver
+from app.deps import get_current_user, require_leave_approver, require_roles
 
 router = APIRouter(prefix="/api/leaves", tags=["leaves"])
 
@@ -224,7 +224,7 @@ def get_all_balances(
 @router.get("/balances/summary", response_model=List[schemas.LeaveBalanceSummary])
 def get_balances_summary(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_roles(["HR", "ADMIN", "SUPER_ADMIN"])),
 ):
     """Return per-employee leave balance summary efficiently in batch."""
     from collections import defaultdict

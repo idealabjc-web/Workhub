@@ -90,7 +90,22 @@ export default function Expenses() {
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const { user } = useAuth();
-  const canApprove = user && ["SUPER_ADMIN", "HR", "FINANCE", "MANAGER"].includes(user.role);
+
+  const EXPENSE_APPROVER_EMP_ID = "eeb58c93-cdb7-4030-9f5e-7210bf43d68f";
+  const EXPENSE_APPROVER_EMP_NUM = "SA1002";
+  const EXPENSE_APPROVER_EMAILS = ["superadmin@idealab.com", "dr.prasadkovvuru@gmail.com"];
+
+  const isExpenseApprover = !!(
+    user?.can_approve_expenses ||
+    user?.employee_number === EXPENSE_APPROVER_EMP_NUM ||
+    user?.employee_id === EXPENSE_APPROVER_EMP_ID ||
+    (user?.email && EXPENSE_APPROVER_EMAILS.includes(user.email.toLowerCase()))
+  );
+
+  const canApprove = isExpenseApprover;
+  const canMarkPaid = isExpenseApprover || (user && ["SUPER_ADMIN", "FINANCE"].includes(user.role));
+  const canDelete = isExpenseApprover || (user && ["SUPER_ADMIN", "HR", "MANAGER"].includes(user.role));
+  const hasActions = isExpenseApprover || canMarkPaid || canDelete;
 
   const load = () => {
     const params: any = {};
@@ -177,8 +192,12 @@ export default function Expenses() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await api.patch(`/api/expenses/${id}/status`, { status }).catch(() => {});
-    load();
+    try {
+      await api.patch(`/api/expenses/${id}/status`, { status });
+      load();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to update expense status");
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -213,8 +232,14 @@ export default function Expenses() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Expenses</h1>
-          <p className="text-sm text-slate-400">Submit and manage expense reimbursements & vendor payments</p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-semibold">Expenses</h1>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60">
+              <Check size={12} className="text-amber-600 dark:text-amber-400" />
+              Approver: Dr Prasad Kovvuru (#SA1002)
+            </span>
+          </div>
+          <p className="text-sm text-slate-400 mt-0.5">Submit and manage expense reimbursements & vendor payments</p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportExcel} className="btn-secondary gap-2"><Download size={15} /> Export</button>
@@ -411,7 +436,7 @@ export default function Expenses() {
               <th className="px-4 py-3">Method</th>
               <th className="px-4 py-3">Bill Receipt</th>
               <th className="px-4 py-3">Status</th>
-              {canApprove && <th className="px-4 py-3">Actions</th>}
+              {hasActions && <th className="px-4 py-3">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -459,28 +484,37 @@ export default function Expenses() {
                   </span>
                 </td>
 
-                {canApprove && (
+                {hasActions && (
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1.5">
                       {r.status === "PENDING" && (
-                        <>
-                          <button
-                            onClick={() => updateStatus(r.id, "APPROVED")}
-                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition shadow-sm"
-                            title="Approve expense"
+                        canApprove ? (
+                          <>
+                            <button
+                              onClick={() => updateStatus(r.id, "APPROVED")}
+                              className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition shadow-sm"
+                              title="Approve expense"
+                            >
+                              <Check size={12} /> Approve
+                            </button>
+                            <button
+                              onClick={() => updateStatus(r.id, "REJECTED")}
+                              className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition shadow-sm"
+                              title="Reject expense"
+                            >
+                              <X size={12} /> Reject
+                            </button>
+                          </>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200/60 dark:border-amber-900/60 font-medium"
+                            title="Approval restricted to Dr Prasad Kovvuru (#SA1002)"
                           >
-                            <Check size={12} /> Approve
-                          </button>
-                          <button
-                            onClick={() => updateStatus(r.id, "REJECTED")}
-                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition shadow-sm"
-                            title="Reject expense"
-                          >
-                            <X size={12} /> Reject
-                          </button>
-                        </>
+                            Awaiting Dr Prasad Kovvuru (#SA1002)
+                          </span>
+                        )
                       )}
-                      {r.status === "APPROVED" && (
+                      {r.status === "APPROVED" && canMarkPaid && (
                         <button
                           onClick={() => updateStatus(r.id, "PAID")}
                           className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-blue-100 text-blue-700 font-semibold text-xs hover:bg-blue-200 transition shadow-sm"
@@ -489,13 +523,15 @@ export default function Expenses() {
                           Mark Paid
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                        title="Delete expense record"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {(canDelete || (user?.employee_id === r.employee_id && r.status === "PENDING")) && (
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                          title="Delete expense record"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 )}

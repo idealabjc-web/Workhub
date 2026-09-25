@@ -8,7 +8,7 @@ from app import models, schemas
 from app.auth import create_access_token, verify_password
 from app.database import get_db
 
-from app.deps import get_current_user, is_leave_approver_user
+from app.deps import get_current_user, is_leave_approver_user, is_expense_approver_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -64,6 +64,7 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
         full_name=full_name,
         profile_complete=profile_complete,
         can_approve_leaves=is_leave_approver_user(user),
+        can_approve_expenses=is_expense_approver_user(user),
         employee_number=employee_number,
     )
 
@@ -121,6 +122,7 @@ def google_login(payload: schemas.GoogleLoginRequest, db: Session = Depends(get_
             full_name=full_name,
             profile_complete=profile_complete,
             can_approve_leaves=is_leave_approver_user(user),
+            can_approve_expenses=is_expense_approver_user(user),
             employee_number=employee_number,
         )
 
@@ -152,6 +154,7 @@ def get_current_user_auth(current_user: models.User = Depends(get_current_user))
         full_name=full_name,
         profile_complete=profile_complete,
         can_approve_leaves=is_leave_approver_user(current_user),
+        can_approve_expenses=is_expense_approver_user(current_user),
         employee_number=employee_number,
     )
 

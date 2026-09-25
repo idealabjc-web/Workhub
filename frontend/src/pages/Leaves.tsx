@@ -48,11 +48,10 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
-  CASUAL: "Casual Leave", SICK: "Sick Leave", PAID: "Paid Leave", UNPAID: "Unpaid Leave",
-  MATERNITY: "Maternity Leave", PATERNITY: "Paternity Leave", OPTIONAL: "Optional Leave",
+  LEAVE: "Leave",
 };
 
-const EMPTY_FORM = { leave_type: "CASUAL", start_date: "", end_date: "", reason: "" };
+const EMPTY_FORM = { leave_type: "LEAVE", start_date: "", end_date: "", reason: "" };
 
 function formatDateMDY(dateStr?: string): string {
   if (!dateStr) return "—";
@@ -106,6 +105,7 @@ export default function Leaves() {
   );
 
   const canApprove = isLeaveApprover;
+  const isHR = user?.role === "HR" || user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
 
   const canEditLeave = (r: LeaveRow) => {
     if (canApprove) return true;
@@ -264,17 +264,9 @@ export default function Leaves() {
       "Employee Name": s.employee_name || "—",
       "Branch": s.branch || "—",
       "Department": s.department || "—",
-      "Designation": s.designation || "—",
       "Annual Quota": s.total_quota,
       "Total Leaves Taken": s.total_used,
       "Leaves Remaining": s.remaining,
-      "Casual Used": s.casual_used,
-      "Sick Used": s.sick_used,
-      "Paid Used": s.paid_used,
-      "Unpaid Used": s.unpaid_used,
-      "Maternity Used": s.maternity_used,
-      "Paternity Used": s.paternity_used,
-      "Optional Used": s.optional_used,
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -297,14 +289,16 @@ export default function Leaves() {
           <p className="text-sm text-slate-400">Apply, track, and manage leave requests</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="btn-secondary gap-2"
-            onClick={handleOpenLeaveBalanceModal}
-            title="View per-employee leave balances"
-          >
-            <FileText size={16} /> Leave Balance
-          </button>
+          {isHR && (
+            <button
+              type="button"
+              className="btn-secondary gap-2"
+              onClick={handleOpenLeaveBalanceModal}
+              title="View per-employee leave balances"
+            >
+              <FileText size={16} /> Leave Balance
+            </button>
+          )}
           <button
             type="button"
             className="btn-secondary gap-2"
@@ -574,12 +568,6 @@ export default function Leaves() {
                       <th className="px-3.5 py-2.5 text-center">Quota</th>
                       <th className="px-3.5 py-2.5 text-center">Used</th>
                       <th className="px-3.5 py-2.5 text-center">Remaining</th>
-                      <th className="px-3.5 py-2.5 text-center">Casual</th>
-                      <th className="px-3.5 py-2.5 text-center">Sick</th>
-                      <th className="px-3.5 py-2.5 text-center">Paid</th>
-                      <th className="px-3.5 py-2.5 text-center">Unpaid</th>
-                      <th className="px-3.5 py-2.5 text-center">Maternity</th>
-                      <th className="px-3.5 py-2.5 text-center">Paternity</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -596,17 +584,11 @@ export default function Leaves() {
                         <td className="px-3.5 py-3 text-center font-bold text-slate-700 dark:text-slate-300">{s.total_quota}</td>
                         <td className="px-3.5 py-3 text-center font-bold text-amber-600 dark:text-amber-400">{s.total_used}</td>
                         <td className="px-3.5 py-3 text-center font-extrabold text-emerald-600 dark:text-emerald-400">{s.remaining}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.casual_used}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.sick_used}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.paid_used}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.unpaid_used}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.maternity_used}</td>
-                        <td className="px-3.5 py-3 text-center text-slate-600 dark:text-slate-400">{s.paternity_used}</td>
                       </tr>
                     ))}
                     {filteredBalanceSummaries.length === 0 && (
                       <tr>
-                        <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                           No leave balances found
                         </td>
                       </tr>
