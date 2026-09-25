@@ -173,8 +173,8 @@ def sync_employee_leave_balances(db: Session, employee: models.Employee):
             if l.leave_type == lt
         )
 
-        # Add uncovered attendance leaves to CASUAL balance as a catch-all
-        if lt == models.LeaveTypeEnum.CASUAL:
+        # Add uncovered attendance leaves to LEAVE balance as a catch-all
+        if lt == models.LeaveTypeEnum.LEAVE:
             used_days += uncovered_attendance_leaves
 
         if balance:
