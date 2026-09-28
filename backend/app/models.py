@@ -66,6 +66,13 @@ class AttendanceStatusEnum(str, enum.Enum):
 
 
 class LeaveTypeEnum(str, enum.Enum):
+    CASUAL = "CASUAL"
+    SICK = "SICK"
+    PAID = "PAID"
+    UNPAID = "UNPAID"
+    MATERNITY = "MATERNITY"
+    PATERNITY = "PATERNITY"
+    OPTIONAL = "OPTIONAL"
     LEAVE = "LEAVE"
 
 

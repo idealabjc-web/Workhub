@@ -48,10 +48,17 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
+  CASUAL: "Casual Leave",
+  SICK: "Sick Leave",
+  PAID: "Paid Leave",
+  UNPAID: "Unpaid Leave",
+  MATERNITY: "Maternity Leave",
+  PATERNITY: "Paternity Leave",
+  OPTIONAL: "Optional Leave",
   LEAVE: "Leave",
 };
 
-const EMPTY_FORM = { leave_type: "LEAVE", start_date: "", end_date: "", reason: "" };
+const EMPTY_FORM = { leave_type: "CASUAL", start_date: "", end_date: "", reason: "" };
 
 function formatDateMDY(dateStr?: string): string {
   if (!dateStr) return "—";
