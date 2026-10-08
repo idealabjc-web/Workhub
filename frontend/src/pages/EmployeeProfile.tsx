@@ -142,11 +142,15 @@ export default function EmployeeProfile() {
         api.get("/api/leaves", { params: { employee_id: r.data.id } })
           .then((lr) => setLeaves(lr.data))
           .catch(() => {});
+        api.get(`/api/employees/${r.data.id}/documents`).then((dr) => setDocuments(dr.data)).catch(() => {});
+        api.get(`/api/employees/${r.data.id}/leave-balances`).then((lbr) => setLeaveBalances(lbr.data)).catch(() => {});
       }
     }).catch(() => navigate("/employees"));
     api.get("/api/departments").then((r) => setDepartments(r.data)).catch(() => {});
-    api.get(`/api/employees/${targetId}/documents`).then((r) => setDocuments(r.data)).catch(() => {});
-    api.get(`/api/employees/${targetId}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
+    if (targetId !== "me") {
+      api.get(`/api/employees/${targetId}/documents`).then((r) => setDocuments(r.data)).catch(() => {});
+      api.get(`/api/employees/${targetId}/leave-balances`).then((r) => setLeaveBalances(r.data)).catch(() => {});
+    }
   }, [id]);
 
   const [saveError, setSaveError] = useState("");

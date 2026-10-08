@@ -2,6 +2,7 @@
   "name": "lotus-hr-portal-root",
   "private": true,
   "scripts": {
+    "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend install && npm --prefix frontend run build"
   }
 }

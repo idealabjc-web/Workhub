@@ -293,17 +293,31 @@ def delete_employee(
     return {"detail": "Employee deleted"}
 
 
+def resolve_target_emp_id(employee_id: str, current_user: models.User, db: Session) -> Optional[str]:
+    if employee_id == "me":
+        if not current_user.employee:
+            from app.routers.attendance import get_or_create_user_employee
+            emp = get_or_create_user_employee(db, current_user)
+        else:
+            emp = current_user.employee
+        return emp.id if emp else None
+    return employee_id
+
+
 @router.get("/{employee_id}/documents", response_model=List[schemas.EmployeeDocumentOut])
 def get_employee_documents(
     employee_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role.value == "EMPLOYEE" and (not current_user.employee or current_user.employee.id != employee_id):
+    target_id = resolve_target_emp_id(employee_id, current_user, db)
+    if not target_id:
+        return []
+    if current_user.role.value == "EMPLOYEE" and (not current_user.employee or current_user.employee.id != target_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return db.query(models.EmployeeDocument).filter(
-        models.EmployeeDocument.employee_id == employee_id
-    ).all()
+        models.EmployeeDocument.employee_id == target_id
+    ).order_by(models.EmployeeDocument.uploaded_at.desc()).all()
 
 
 @router.post("/{employee_id}/documents", response_model=schemas.EmployeeDocumentOut)
@@ -313,8 +327,12 @@ def add_employee_document(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR"])),
 ):
+    target_id = resolve_target_emp_id(employee_id, current_user, db)
+    if not target_id:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
     doc = models.EmployeeDocument(
-        employee_id=employee_id,
+        employee_id=target_id,
         doc_type=payload.doc_type,
         file_name=payload.file_name,
         file_url=payload.file_url,
@@ -332,10 +350,11 @@ def delete_employee_document(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR"])),
 ):
-    doc = db.query(models.EmployeeDocument).filter(
-        models.EmployeeDocument.id == doc_id,
-        models.EmployeeDocument.employee_id == employee_id,
-    ).first()
+    target_id = resolve_target_emp_id(employee_id, current_user, db)
+    query = db.query(models.EmployeeDocument).filter(models.EmployeeDocument.id == doc_id)
+    if target_id:
+        query = query.filter(models.EmployeeDocument.employee_id == target_id)
+    doc = query.first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(doc)
@@ -351,10 +370,11 @@ def update_employee_document(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_roles(["SUPER_ADMIN", "HR"])),
 ):
-    doc = db.query(models.EmployeeDocument).filter(
-        models.EmployeeDocument.id == doc_id,
-        models.EmployeeDocument.employee_id == employee_id,
-    ).first()
+    target_id = resolve_target_emp_id(employee_id, current_user, db)
+    query = db.query(models.EmployeeDocument).filter(models.EmployeeDocument.id == doc_id)
+    if target_id:
+        query = query.filter(models.EmployeeDocument.employee_id == target_id)
+    doc = query.first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
