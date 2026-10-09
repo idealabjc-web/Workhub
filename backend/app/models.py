@@ -483,4 +483,4 @@ class SystemSetting(Base):
     id = Column(String, primary_key=True, default=gen_uuid)
     key = Column(String, unique=True, nullable=False)
     value = Column(Text, nullable=True)
-    updated_at = Column(DateTime, default=utc_now, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

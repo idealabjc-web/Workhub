@@ -300,7 +300,7 @@ def resolve_target_emp_id(employee_id: str, current_user: models.User, db: Sessi
             emp = get_or_create_user_employee(db, current_user)
         else:
             emp = current_user.employee
-        return emp.id if emp else None
+        return str(emp.id) if (emp and emp.id) else None
     return employee_id
 
 

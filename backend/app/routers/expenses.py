@@ -91,8 +91,7 @@ def update_expense_status(
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
 
-    target_status = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
-    target_status = target_status.upper()
+    target_status = payload.status.upper()
 
     # Expenses approval & rejection are strictly restricted to Dr Prasad Kovvuru (#SA1002)
     if target_status in ["APPROVED", "REJECTED"]:
