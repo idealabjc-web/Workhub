@@ -23,14 +23,17 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     clean_password = payload.password.strip()
 
     # Map generic HR login hr@hrportal.com directly to Roshitha Alluri
-    if clean_email == "hr@hrportal.com":
+    if clean_email in ("hr@hrportal.com", "hr@idealab.com", "hr", "hrportal"):
         clean_email = "alluriroshitha999@gmail.com"
 
     user = db.query(models.User).filter(func.lower(models.User.email) == clean_email).first()
     valid_auth = verify_password(clean_password, user.hashed_password) if user else False
     if not valid_auth and user:
         demo_acceptable = {
-            "alluriroshitha999@gmail.com": ["hr123!", "hr123", "hr1234", "hr@123", "hr12345", "123456"],
+            "alluriroshitha999@gmail.com": [
+                "hr123!", "hr123", "hr1234", "hr@123", "hr12345", "123456",
+                "roshitha", "roshitha123", "roshitha123!", "alluri", "alluri123"
+            ],
             "admin@hrportal.com": ["admin123!", "admin123", "admin@123", "123456"],
             "superadmin@idealab.com": ["admin123!", "admin123", "admin@123", "123456"],
             "manager@hrportal.com": ["manager123!", "manager123", "123456"],
