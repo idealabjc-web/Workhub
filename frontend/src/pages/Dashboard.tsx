@@ -117,7 +117,7 @@ export default function Dashboard() {
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              Welcome, {empDetail ? `${empDetail.first_name} ${empDetail.last_name}` : (user?.full_name && user.full_name !== "Hr Staff" && user.full_name !== "Hr" ? user.full_name : "Roshitha Alluri")}! 👋
+              Welcome, {empDetail ? `${empDetail.first_name} ${empDetail.last_name}` : (user?.full_name || "Roshitha Alluri")}! 👋
             </h1>
             <p className="text-xs sm:text-sm text-brand-100 mt-1">
               {isEmployeeOnly

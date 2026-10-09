@@ -88,6 +88,18 @@ def get_or_create_user_employee(db: Session, user: models.User) -> models.Employ
         db.refresh(emp)
         return emp
 
+    # If role is HR or email is HR, Roshitha Alluri is the actual HR employee
+    if user.role == models.UserRoleEnum.HR or user.email in ("alluriroshitha999@gmail.com", "hr@hrportal.com"):
+        roshitha = db.query(models.Employee).filter(
+            (models.Employee.email == "alluriroshitha999@gmail.com") |
+            ((models.Employee.first_name == "Roshitha") & (models.Employee.last_name == "Alluri"))
+        ).first()
+        if roshitha:
+            if not roshitha.user_id:
+                roshitha.user_id = user.id
+                db.commit()
+                db.refresh(roshitha)
+            return roshitha
     # Create new Employee for user
     email_name = user.email.split("@")[0]
     parts = email_name.split(".")
