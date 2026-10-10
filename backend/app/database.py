@@ -13,9 +13,9 @@ if env_path.exists():
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
 
-# Production Neon PostgreSQL database connection pooler URL
+# Production Supabase PostgreSQL database connection pooler URL
 DEFAULT_DATABASE_URL = (
-    "postgresql://neondb_owner:npg_NHY3C9uGfWki@ep-snowy-cherry-azfm1y9n-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+    "postgresql://postgres.yfejfdczfmhgmlykkmct:Hrportal%40123%24@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
 )
 
 DATABASE_URL = os.getenv("DATABASE_URL")
