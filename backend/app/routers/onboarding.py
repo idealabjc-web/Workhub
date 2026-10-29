@@ -57,10 +57,13 @@ def complete_onboarding(
     doj = parse_flexible_date(payload.date_of_joining) or date.today()
     dob = parse_flexible_date(payload.date_of_birth)
 
-    # Map branch string to enum (IDEALAB and VIZAG)
+    # Map branch string to enum
     branch_map = {
         "IDEALAB": models.BranchEnum.IDEALAB,
         "VIZAG": models.BranchEnum.VIZAG,
+        "ORIGIN": models.BranchEnum.ORIGIN,
+        "UGC": models.BranchEnum.UGC,
+        "HYD": models.BranchEnum.HYD,
     }
     branch = branch_map.get(payload.branch.upper(), models.BranchEnum.IDEALAB)
 

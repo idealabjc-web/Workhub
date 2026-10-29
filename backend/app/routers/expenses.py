@@ -145,6 +145,7 @@ def delete_expense(
 @router.get("/summary/monthly")
 def expense_summary(
     month: Optional[str] = None,
+    branch: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -154,6 +155,9 @@ def expense_summary(
 
     if current_user.role.value == "EMPLOYEE" and current_user.employee:
         query = query.filter(models.Expense.employee_id == current_user.employee.id)
+
+    if branch:
+        query = query.filter(models.Expense.branch == branch)
 
     if month:
         year, m = map(int, month.split("-"))

@@ -455,7 +455,7 @@ class RevenueOut(BaseModel):
 # ── Expense ───────────────────────────────────────────────────────────────────
 
 class ExpenseCreate(BaseModel):
-    employee_id: str
+    employee_id: Optional[str] = None
     branch: Optional[str] = None
     department_id: Optional[str] = None
     category: str
@@ -473,7 +473,7 @@ class ExpenseStatusUpdate(BaseModel):
 
 class ExpenseOut(BaseModel):
     id: str
-    employee_id: str
+    employee_id: Optional[str] = None
     branch: Optional[str] = None
     department_id: Optional[str] = None
     category: str

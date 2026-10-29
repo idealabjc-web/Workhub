@@ -32,6 +32,7 @@ const branchColors: Record<string, string> = {
   IDEALAB: "bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300",
   UGC: "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
   VIZAG: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  ORIGIN: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
 };
 
 const statusColors: Record<string, string> = {
@@ -244,6 +245,7 @@ export default function Employees() {
         </div>
         <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
+          <option value="ORIGIN">Origin</option>
           <option value="IDEALAB">Idealab</option>
           <option value="VIZAG">Vizag</option>
         </select>
@@ -271,12 +273,13 @@ export default function Employees() {
             <input placeholder="Phone" className="input text-sm" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             <input placeholder="Designation" className="input text-sm" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
             <select className="input text-sm" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
+              <option value="ORIGIN">Origin</option>
               <option value="IDEALAB">Idealab</option>
               <option value="VIZAG">Vizag</option>
             </select>
             <select className="input text-sm" value={(form as any).team_name || ""} onChange={(e) => setForm({ ...form, team_name: e.target.value } as any)}>
               <option value="">Select Team</option>
-              {["TECH TEAM", "IDIAS", "WYN", "NEXT", "WYNX", "PROSUMMITS", "VOICE", "SIGNATURE", "VIZAG", "ICON", "TECH"].map((t) => (
+              {["TECH TEAM", "IDIAS", "ORIGIN", "WYN", "NEXT", "WYNX", "PROSUMMITS", "VOICE", "SIGNATURE", "VIZAG", "ICON", "TECH"].map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>

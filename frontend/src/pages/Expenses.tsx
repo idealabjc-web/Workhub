@@ -43,11 +43,11 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const CATEGORIES = [
-  "Travel", "Food", "Vendors", "Accommodation", "Office Supplies",
+  "Origin Expenses", "Travel", "Food", "Vendors", "Accommodation", "Office Supplies",
   "Training", "Events", "Marketing", "Other"
 ];
 
-const PIE_COLORS = ["#3366ff", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#14b8a6", "#f97316", "#6b7280", "#ec4899"];
+const PIE_COLORS = ["#f59e0b", "#3366ff", "#8b5cf6", "#10b981", "#ef4444", "#14b8a6", "#f97316", "#6b7280", "#ec4899"];
 
 function formatDateMDY(dateStr?: string): string {
   if (!dateStr) return "—";
@@ -68,6 +68,7 @@ export default function Expenses() {
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [monthFilter, setMonthFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -75,7 +76,8 @@ export default function Expenses() {
 
   // Form State
   const [form, setForm] = useState({
-    category: "Travel",
+    category: "Origin Expenses",
+    branch: "ORIGIN",
     amount: "",
     date: new Date().toISOString().slice(0, 10),
     description: "",
@@ -110,13 +112,14 @@ export default function Expenses() {
   const load = () => {
     const params: any = {};
     if (monthFilter) params.month = monthFilter;
+    if (branchFilter) params.branch = branchFilter;
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
     api.get("/api/expenses", { params }).then((r) => setRows(r.data)).catch(() => {});
-    api.get("/api/expenses/summary/monthly", { params: { month: monthFilter } }).then((r) => setSummary(r.data)).catch(() => {});
+    api.get("/api/expenses/summary/monthly", { params: { month: monthFilter, branch: branchFilter } }).then((r) => setSummary(r.data)).catch(() => {});
   };
 
-  useEffect(() => { load(); }, [monthFilter, statusFilter, categoryFilter]);
+  useEffect(() => { load(); }, [monthFilter, branchFilter, statusFilter, categoryFilter]);
 
   // Handle File Selection / Drop
   const handleFileProcess = (file: File) => {
@@ -178,7 +181,8 @@ export default function Expenses() {
       setShowForm(false);
       setSelectedFile(null);
       setForm({
-        category: "Travel",
+        category: "Origin Expenses",
+        branch: "ORIGIN",
         amount: "",
         date: new Date().toISOString().slice(0, 10),
         description: "",
@@ -214,6 +218,7 @@ export default function Expenses() {
   const exportExcel = () => {
     const data = rows.map((r) => ({
       Employee: r.employee_name || "Staff Member",
+      Branch: r.branch || "—",
       Date: formatDateMDY(r.date),
       Category: r.category,
       Vendor: r.vendor_name || "—",
@@ -284,6 +289,14 @@ export default function Expenses() {
             Show All Months
           </button>
         )}
+        <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+          <option value="">All Branches</option>
+          <option value="ORIGIN">Origin</option>
+          <option value="IDEALAB">Idealab</option>
+          <option value="VIZAG">Vizag</option>
+          <option value="UGC">UGC</option>
+          <option value="HYD">HYD</option>
+        </select>
         <select className="input w-40 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
           <option value="PENDING">Pending</option>
@@ -291,7 +304,7 @@ export default function Expenses() {
           <option value="PAID">Paid</option>
           <option value="REJECTED">Rejected</option>
         </select>
-        <select className="input w-40 text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+        <select className="input w-44 text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
           <option value="">All Categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -310,6 +323,17 @@ export default function Expenses() {
               <label className="text-xs text-slate-400 mb-1 block">Category *</label>
               <select className="input text-sm" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Branch / Unit *</label>
+              <select className="input text-sm font-semibold" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
+                <option value="ORIGIN">Origin</option>
+                <option value="IDEALAB">Idealab</option>
+                <option value="VIZAG">Vizag</option>
+                <option value="UGC">UGC</option>
+                <option value="HYD">HYD</option>
               </select>
             </div>
 
@@ -444,7 +468,18 @@ export default function Expenses() {
               <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                 <td className="px-4 py-3.5">
                   <p className="font-semibold text-slate-800 dark:text-slate-100">{r.employee_name || "Staff Member"}</p>
-                  <p className="text-[10px] text-slate-400 font-mono">{r.employee_number || ""} {r.branch ? `· ${r.branch}` : ""}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-slate-400 font-mono">{r.employee_number || ""}</span>
+                    {r.branch && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${
+                        r.branch === "ORIGIN"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      }`}>
+                        {r.branch}
+                      </span>
+                    )}
+                  </div>
                 </td>
 
                 <td className="px-4 py-3.5 font-medium">

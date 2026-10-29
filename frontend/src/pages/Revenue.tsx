@@ -9,7 +9,12 @@ interface RevenueRow { id: string; team_id?: string; branch?: string; month: str
 interface Team { id: string; name: string; branch: string; }
 interface Summary { year: number; total_target: number; total_achieved: number; achievement_pct: number; monthly: { month: string; target: number; achieved: number; incentives: number }[]; }
 
-const BRANCH_COLOR: Record<string, string> = { IDEALAB: "bg-brand-100 text-brand-700", UGC: "bg-violet-100 text-violet-700", VIZAG: "bg-emerald-100 text-emerald-700" };
+const BRANCH_COLOR: Record<string, string> = {
+  IDEALAB: "bg-brand-100 text-brand-700",
+  UGC: "bg-violet-100 text-violet-700",
+  VIZAG: "bg-emerald-100 text-emerald-700",
+  ORIGIN: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+};
 
 export default function Revenue() {
   const [rows, setRows] = useState<RevenueRow[]>([]);
@@ -141,6 +146,7 @@ export default function Revenue() {
         <input type="month" className="input w-40 text-sm" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} placeholder="Filter by month" />
         <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
+          <option value="ORIGIN">Origin</option>
           <option value="IDEALAB">Idealab</option>
           <option value="UGC">UGC</option>
           <option value="VIZAG">Vizag</option>
@@ -160,6 +166,7 @@ export default function Revenue() {
               <label className="text-xs text-slate-400 mb-1 block">Branch</label>
               <select className="input text-sm" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
                 <option value="">All</option>
+                <option value="ORIGIN">Origin</option>
                 <option value="IDEALAB">Idealab</option>
                 <option value="UGC">UGC</option>
                 <option value="VIZAG">Vizag</option>

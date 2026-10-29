@@ -62,6 +62,37 @@ def init_db():
                             pass
         print("Auto-migration complete.")
         try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TYPE branchenum ADD VALUE IF NOT EXISTS 'ORIGIN'"))
+                conn.commit()
+        except Exception as err_enum:
+            print("Branch enum migration note:", err_enum)
+        try:
+            with engine.begin() as conn:
+                import uuid
+                origin_dept = conn.execute(
+                    text("SELECT id FROM departments WHERE UPPER(name) = 'ORIGIN' LIMIT 1;")
+                ).fetchone()
+                if not origin_dept:
+                    origin_dept_id = str(uuid.uuid4())
+                    conn.execute(
+                        text("INSERT INTO departments (id, name, branch) VALUES (:id, 'ORIGIN', 'ORIGIN');"),
+                        {"id": origin_dept_id},
+                    )
+                else:
+                    origin_dept_id = origin_dept[0]
+
+                origin_team = conn.execute(
+                    text("SELECT id FROM teams WHERE UPPER(name) = 'ORIGIN' LIMIT 1;")
+                ).fetchone()
+                if not origin_team:
+                    conn.execute(
+                        text("INSERT INTO teams (id, name, branch, department_id) VALUES (:id, 'ORIGIN', 'ORIGIN', :dept_id);"),
+                        {"id": str(uuid.uuid4()), "dept_id": origin_dept_id},
+                    )
+        except Exception as err_origin:
+            print("ORIGIN team auto-setup note:", err_origin)
+        try:
             with engine.begin() as conn:
                 conn.execute(text("INSERT INTO system_settings (id, key, value) SELECT 'remote_def_id', 'allow_remote_checkin', 'false' WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'allow_remote_checkin');"))
                 

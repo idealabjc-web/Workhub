@@ -53,6 +53,7 @@ class BranchEnum(str, enum.Enum):
     UGC = "UGC"
     VIZAG = "VIZAG"
     HYD = "HYD"
+    ORIGIN = "ORIGIN"
 
 
 class AttendanceStatusEnum(str, enum.Enum):

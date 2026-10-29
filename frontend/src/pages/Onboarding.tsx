@@ -288,6 +288,7 @@ export default function Onboarding() {
                     >
                       <option value="TECH TEAM">TECH TEAM</option>
                       <option value="IDIAS">IDIAS</option>
+                      <option value="ORIGIN">ORIGIN</option>
                       <option value="WYN">WYN</option>
                       <option value="NEXT">NEXT</option>
                       <option value="WYNX">WYNX</option>
