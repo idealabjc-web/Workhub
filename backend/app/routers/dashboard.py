@@ -18,10 +18,11 @@ def get_stats(
 ):
     today = date.today()
 
-    total_employees = db.query(models.Employee).count()
     active_employees = db.query(models.Employee).filter(
         models.Employee.status == "Active"
     ).count()
+    # Total count of employees should be only active employees
+    total_employees = active_employees
 
     present_today = (
         db.query(models.Attendance)

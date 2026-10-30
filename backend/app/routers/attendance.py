@@ -278,19 +278,30 @@ def toggle_remote_checkin(
 
 
 def ensure_sunday_week_offs(db: Session, year: int, month: int, employee_id: Optional[str] = None):
-    """Ensure all Sundays in the specified month have a WEEK_OFF attendance record if not checked in."""
+    """Ensure all Sundays in the specified month have a WEEK_OFF attendance record if not checked in and not a holiday."""
     import calendar
     try:
         days_in_month = calendar.monthrange(year, month)[1]
     except Exception:
         return
 
+    holiday_dates = {
+        h[0] for h in db.query(models.Holiday.date).filter(
+            extract("year", models.Holiday.date) == year,
+            extract("month", models.Holiday.date) == month,
+        ).all()
+    }
+
     emp_query = db.query(models.Employee).filter(models.Employee.status == "Active")
     if employee_id:
         emp_query = emp_query.filter(models.Employee.id == employee_id)
     employees = emp_query.all()
 
-    sundays = [date(year, month, day) for day in range(1, days_in_month + 1) if date(year, month, day).weekday() == 6]
+    sundays = [
+        date(year, month, day)
+        for day in range(1, days_in_month + 1)
+        if date(year, month, day).weekday() == 6 and date(year, month, day) not in holiday_dates
+    ]
     if not sundays or not employees:
         return
 
@@ -314,9 +325,11 @@ def ensure_sunday_week_offs(db: Session, year: int, month: int, employee_id: Opt
                     status=models.AttendanceStatusEnum.WEEK_OFF,
                 ))
                 added = True
-            elif existing.check_in is None and existing.status != models.AttendanceStatusEnum.WEEK_OFF:
-                existing.status = models.AttendanceStatusEnum.WEEK_OFF
-                added = True
+            elif existing.check_in is None:
+                st = existing.status.value if hasattr(existing.status, "value") else str(existing.status)
+                if st not in ("WEEK_OFF", "HOLIDAY"):
+                    existing.status = models.AttendanceStatusEnum.WEEK_OFF
+                    added = True
 
     if added:
         db.commit()

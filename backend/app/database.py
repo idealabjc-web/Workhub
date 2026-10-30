@@ -18,15 +18,18 @@ DEFAULT_DATABASE_URL = (
     "postgresql://postgres.yfejfdczfmhgmlykkmct:Hrportal%40123%24@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
 )
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL or DATABASE_URL.startswith("sqlite"):
-    DATABASE_URL = DEFAULT_DATABASE_URL
+raw_db_url = os.getenv("DATABASE_URL")
+DATABASE_URL: str = (
+    raw_db_url
+    if raw_db_url and not raw_db_url.startswith("sqlite")
+    else DEFAULT_DATABASE_URL
+)
 
 IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
 
 def _build_connect_args():
-    if "sqlite" in DATABASE_URL:
+    if DATABASE_URL and "sqlite" in DATABASE_URL:
         return {"check_same_thread": False}
     # PostgreSQL SSL keepalive settings to prevent
     # "SSL connection has been closed unexpectedly" errors
@@ -45,7 +48,7 @@ def _build_engine_kwargs():
         "connect_args": _build_connect_args(),
         "pool_pre_ping": True,
     }
-    if "sqlite" in DATABASE_URL:
+    if DATABASE_URL and "sqlite" in DATABASE_URL:
         return kwargs
 
     if IS_SERVERLESS:

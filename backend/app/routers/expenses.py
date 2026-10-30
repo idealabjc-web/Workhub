@@ -32,12 +32,24 @@ def list_expenses(
     if category:
         query = query.filter(models.Expense.category == category)
     if month:
-        from sqlalchemy import extract
-        year, m = map(int, month.split("-"))
-        query = query.filter(
-            extract("year", models.Expense.date) == year,
-            extract("month", models.Expense.date) == m,
-        )
+        import calendar
+        from datetime import date as dt_date
+        try:
+            year, m = map(int, month.split("-"))
+            _, last_day = calendar.monthrange(year, m)
+            start_date = dt_date(year, m, 1)
+            end_date = dt_date(year, m, last_day)
+            query = query.filter(
+                models.Expense.date >= start_date,
+                models.Expense.date <= end_date,
+            )
+        except Exception:
+            from sqlalchemy import extract
+            year, m = map(int, month.split("-"))
+            query = query.filter(
+                extract("year", models.Expense.date) == year,
+                extract("month", models.Expense.date) == m,
+            )
     records = query.order_by(models.Expense.created_at.desc()).all()
     return records
 
@@ -146,11 +158,13 @@ def delete_expense(
 def expense_summary(
     month: Optional[str] = None,
     branch: Optional[str] = None,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    from datetime import date
-    from sqlalchemy import extract
+    import calendar
+    from datetime import date as dt_date
     query = db.query(models.Expense)
 
     if current_user.role.value == "EMPLOYEE" and current_user.employee:
@@ -159,12 +173,29 @@ def expense_summary(
     if branch:
         query = query.filter(models.Expense.branch == branch)
 
+    if status:
+        query = query.filter(models.Expense.status == status)
+
+    if category:
+        query = query.filter(models.Expense.category == category)
+
     if month:
-        year, m = map(int, month.split("-"))
-        query = query.filter(
-            extract("year", models.Expense.date) == year,
-            extract("month", models.Expense.date) == m,
-        )
+        try:
+            year, m = map(int, month.split("-"))
+            _, last_day = calendar.monthrange(year, m)
+            start_date = dt_date(year, m, 1)
+            end_date = dt_date(year, m, last_day)
+            query = query.filter(
+                models.Expense.date >= start_date,
+                models.Expense.date <= end_date,
+            )
+        except Exception:
+            from sqlalchemy import extract
+            year, m = map(int, month.split("-"))
+            query = query.filter(
+                extract("year", models.Expense.date) == year,
+                extract("month", models.Expense.date) == m,
+            )
 
     records = query.all()
 
@@ -173,10 +204,10 @@ def expense_summary(
         by_category[r.category] = by_category.get(r.category, 0) + r.amount
 
     return {
-        "month": month or date.today().strftime("%Y-%m"),
-        "total": sum(r.amount for r in records),
-        "pending": sum(r.amount for r in records if r.status == "PENDING"),
-        "approved": sum(r.amount for r in records if r.status == "APPROVED"),
-        "paid": sum(r.amount for r in records if r.status == "PAID"),
-        "by_category": [{"category": k, "amount": v} for k, v in by_category.items()],
+        "month": month or dt_date.today().strftime("%Y-%m"),
+        "total": round(sum(r.amount for r in records)),
+        "pending": round(sum(r.amount for r in records if r.status == "PENDING")),
+        "approved": round(sum(r.amount for r in records if r.status == "APPROVED")),
+        "paid": round(sum(r.amount for r in records if r.status == "PAID")),
+        "by_category": [{"category": k, "amount": round(v)} for k, v in by_category.items()],
     }

@@ -53,9 +53,16 @@ def list_employees(
         query = query.filter(models.Employee.branch == branch)
     if department_id:
         query = query.filter(models.Employee.department_id == department_id)
-    if status:
+    if status and status != "All":
         query = query.filter(models.Employee.status == status)
-    return query.order_by(models.Employee.created_at.desc()).all()
+    elif status != "All":
+        # Total list of employees should only be active employees (exclude inactive)
+        query = query.filter(models.Employee.status == "Active")
+    from sqlalchemy import func
+    return query.order_by(
+        func.lower(func.trim(models.Employee.first_name)).asc(),
+        func.lower(func.trim(models.Employee.last_name)).asc(),
+    ).all()
 
 
 @router.post("", response_model=schemas.EmployeeOut)

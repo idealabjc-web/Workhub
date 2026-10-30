@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Plus, Check, X, Trash2, Download, DollarSign, Upload, Paperclip,
   FileText, ExternalLink, Eye, Building2
@@ -64,6 +64,20 @@ function formatDateMDY(dateStr?: string): string {
   return isNaN(d.getTime()) ? dateStr : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 }
 
+function getMonthLabel(monthStr?: string): string {
+  if (!monthStr) return "";
+  const parts = monthStr.split("-");
+  if (parts.length === 2) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const d = new Date(year, month - 1, 1);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+    }
+  }
+  return monthStr;
+}
+
 export default function Expenses() {
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -116,10 +130,73 @@ export default function Expenses() {
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
     api.get("/api/expenses", { params }).then((r) => setRows(r.data)).catch(() => {});
-    api.get("/api/expenses/summary/monthly", { params: { month: monthFilter, branch: branchFilter } }).then((r) => setSummary(r.data)).catch(() => {});
+    api
+      .get("/api/expenses/summary/monthly", {
+        params: {
+          month: monthFilter,
+          branch: branchFilter,
+          status: statusFilter,
+          category: categoryFilter,
+        },
+      })
+      .then((r) => setSummary(r.data))
+      .catch(() => {});
   };
 
   useEffect(() => { load(); }, [monthFilter, branchFilter, statusFilter, categoryFilter]);
+
+  // Guaranteed client-side filtering: when a month is selected, only that month's expenses are displayed
+  const displayedRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (monthFilter && r.date) {
+        if (!r.date.startsWith(monthFilter)) return false;
+      }
+      if (branchFilter && r.branch !== branchFilter) return false;
+      if (statusFilter && r.status !== statusFilter) return false;
+      if (categoryFilter && r.category !== categoryFilter) return false;
+      return true;
+    });
+  }, [rows, monthFilter, branchFilter, statusFilter, categoryFilter]);
+
+  // Category breakdown for pie chart: strictly scoped to displayedRows (only the selected month)
+  const categoryChartData = useMemo(() => {
+    const catMap: Record<string, number> = {};
+    for (const r of displayedRows) {
+      catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount || 0);
+    }
+    return Object.entries(catMap).map(([category, amount]) => ({
+      category,
+      amount,
+    }));
+  }, [displayedRows]);
+
+  // Financial metrics for displayed rows
+  const metrics = useMemo(() => {
+    let total = 0;
+    let pending = 0;
+    let approved = 0;
+    let paid = 0;
+
+    for (const r of displayedRows) {
+      const amt = Number(r.amount || 0);
+      total += amt;
+      if (r.status === "PENDING") pending += amt;
+      else if (r.status === "APPROVED") approved += amt;
+      else if (r.status === "PAID") paid += amt;
+    }
+
+    // Fallback to summary from backend if rows not loaded yet
+    if (displayedRows.length === 0 && summary) {
+      return {
+        total: summary.total,
+        pending: summary.pending,
+        approved: summary.approved,
+        paid: summary.paid,
+      };
+    }
+
+    return { total, pending, approved, paid };
+  }, [displayedRows, summary]);
 
   // Handle File Selection / Drop
   const handleFileProcess = (file: File) => {
@@ -216,7 +293,7 @@ export default function Expenses() {
   };
 
   const exportExcel = () => {
-    const data = rows.map((r) => ({
+    const data = displayedRows.map((r) => ({
       Employee: r.employee_name || "Staff Member",
       Branch: r.branch || "—",
       Date: formatDateMDY(r.date),
@@ -252,31 +329,76 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Summary Metrics */}
-      {summary && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-1">
-            <div className="card p-4"><p className="text-xs text-slate-400">Total Claimed</p><p className="text-xl font-bold">₹{summary.total.toLocaleString()}</p></div>
-            <div className="card p-4"><p className="text-xs text-slate-400">Pending</p><p className="text-xl font-bold text-amber-600">₹{summary.pending.toLocaleString()}</p></div>
-            <div className="card p-4"><p className="text-xs text-slate-400">Approved</p><p className="text-xl font-bold text-blue-600">₹{summary.approved.toLocaleString()}</p></div>
-            <div className="card p-4"><p className="text-xs text-slate-400">Paid Out</p><p className="text-xl font-bold text-emerald-600">₹{summary.paid.toLocaleString()}</p></div>
+      {/* Summary Metrics & Monthly Breakdown */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-1">
+          <div className="card p-4">
+            <p className="text-xs text-slate-400">Total Claimed</p>
+            <p className="text-xl font-bold">
+              ₹{Math.round(metrics.total).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            </p>
           </div>
-          {summary.by_category.length > 0 && (
-            <div className="card p-4">
-              <p className="text-xs font-semibold text-slate-400 mb-2">Expenses by Category</p>
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie data={summary.by_category} dataKey="amount" nameKey="category" cx="50%" cy="50%" outerRadius={60} paddingAngle={2}>
-                    {summary.by_category.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => `₹${v.toLocaleString()}`} />
-                  <Legend iconSize={8} formatter={(v) => <span className="text-xs">{v}</span>} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          <div className="card p-4">
+            <p className="text-xs text-slate-400">Pending</p>
+            <p className="text-xl font-bold text-amber-600">
+              ₹{Math.round(metrics.pending).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            </p>
+          </div>
+          <div className="card p-4">
+            <p className="text-xs text-slate-400">Approved</p>
+            <p className="text-xl font-bold text-blue-600">
+              ₹{Math.round(metrics.approved).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            </p>
+          </div>
+          <div className="card p-4">
+            <p className="text-xs text-slate-400">Paid Out</p>
+            <p className="text-xl font-bold text-emerald-600">
+              ₹{Math.round(metrics.paid).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            </p>
+          </div>
         </div>
-      )}
+
+        {categoryChartData.length > 0 ? (
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-slate-400">
+                Expenses by Category {monthFilter ? `— ${getMonthLabel(monthFilter)}` : ""}
+              </p>
+              {monthFilter && (
+                <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-md border border-brand-200/50 dark:border-brand-900/50">
+                  {getMonthLabel(monthFilter)}
+                </span>
+              )}
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie
+                  data={categoryChartData}
+                  dataKey="amount"
+                  nameKey="category"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={60}
+                  paddingAngle={2}
+                >
+                  {categoryChartData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => `₹${Math.round(Number(v)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`} />
+                <Legend iconSize={8} formatter={(v) => <span className="text-xs">{v}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="card p-4 flex flex-col items-center justify-center text-center">
+            <p className="text-xs font-semibold text-slate-400 mb-1">Expenses by Category</p>
+            <p className="text-xs text-slate-400">
+              No expense data for {monthFilter ? getMonthLabel(monthFilter) : "the selected filters"}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -464,7 +586,7 @@ export default function Expenses() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {displayedRows.map((r) => (
               <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                 <td className="px-4 py-3.5">
                   <p className="font-semibold text-slate-800 dark:text-slate-100">{r.employee_name || "Staff Member"}</p>
@@ -572,7 +694,13 @@ export default function Expenses() {
                 )}
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No expenses found</td></tr>}
+            {displayedRows.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                  No expenses found for {monthFilter ? getMonthLabel(monthFilter) : "the selected filters"}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

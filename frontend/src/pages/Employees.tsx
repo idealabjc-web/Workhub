@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Search, Plus, Filter, Download, Upload, Eye, Trash2, FileSpreadsheet, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
@@ -54,7 +54,7 @@ export default function Employees() {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Active");
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -83,6 +83,15 @@ export default function Employees() {
 
   useEffect(() => { load(); }, [search, branchFilter, deptFilter, statusFilter]);
 
+  // Arrange employees in alphabetical order (A to Z)
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => {
+      const nameA = `${a.first_name || ""} ${a.last_name || ""}`.trim().toLowerCase();
+      const nameB = `${b.first_name || ""} ${b.last_name || ""}`.trim().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [employees]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -110,7 +119,7 @@ export default function Employees() {
   };
 
   const exportExcel = () => {
-    const rows = employees.map((e) => ({
+    const rows = sortedEmployees.map((e) => ({
       "Employee #": e.employee_number,
       "First Name": e.first_name,
       "Last Name": e.last_name,
@@ -213,7 +222,9 @@ export default function Employees() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Employees</h1>
-          <p className="text-sm text-slate-400">{employees.length} employees across all branches</p>
+          <p className="text-sm text-slate-400">
+            {sortedEmployees.length} {statusFilter === "Inactive" ? "inactive" : statusFilter === "All" ? "total" : "active"} employees across all branches
+          </p>
         </div>
         <div className="flex gap-2">
           {canManage && (
@@ -253,10 +264,10 @@ export default function Employees() {
           <option value="">All Teams</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        <select className="input w-32 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
+        <select className="input w-36 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="Active">Active Only</option>
+          <option value="Inactive">Inactive Only</option>
+          <option value="All">All Employees</option>
         </select>
       </div>
 
@@ -336,7 +347,7 @@ export default function Employees() {
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
+            {sortedEmployees.map((emp) => (
               <tr
                 key={emp.id}
                 className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 cursor-pointer"
@@ -384,10 +395,10 @@ export default function Employees() {
                 </td>
               </tr>
             ))}
-            {employees.length === 0 && (
+            {sortedEmployees.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                  No employees found
+                  No {statusFilter === "Inactive" ? "inactive" : statusFilter === "All" ? "" : "active"} employees found
                 </td>
               </tr>
             )}
