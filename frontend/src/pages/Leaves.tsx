@@ -386,34 +386,48 @@ export default function Leaves() {
         </form>
       )}
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Filter Bar - 1 Row for Search Bar, All Status, All Branches */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+          {/* 1. Search Bar */}
+          <div className="relative w-full">
+            <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Search employee, reason..."
-              className="input pl-9 w-60 text-xs"
+              className="input !pl-10 text-xs sm:text-sm h-10 w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <select className="input w-40 text-xs" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+
+          {/* 2. All Status */}
+          <select
+            className="input w-full text-xs sm:text-sm h-10"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
             <option value="">All Status</option>
             <option value="PENDING">Pending</option>
             <option value="APPROVED">Approved</option>
             <option value="REJECTED">Rejected</option>
             <option value="MANAGER_APPROVED">Manager Approved</option>
           </select>
-          <select className="input w-36 text-xs" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+
+          {/* 3. All Branches */}
+          <select
+            className="input w-full text-xs sm:text-sm h-10"
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+          >
             <option value="">All Branches</option>
             <option value="IDEALAB">Lotus Idealab</option>
             <option value="UGC">Lotus UGC</option>
             <option value="VIZAG">Lotus Vizag</option>
           </select>
         </div>
-        <p className="text-xs text-slate-400 font-medium">
+
+        <p className="text-xs text-slate-400 font-medium shrink-0 self-start lg:self-center">
           Showing <span className="font-bold text-slate-700 dark:text-slate-200">{filteredRows.length}</span> of {rows.length} request(s)
         </p>
       </div>

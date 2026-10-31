@@ -93,13 +93,39 @@ function formatLocalTime(dateStr?: string | null, fallback = "—"): string {
 
 // Cooldown period in seconds after check-in before check-out is allowed
 const CHECKOUT_COOLDOWN_SECONDS = 60;
+const ATTENDANCE_CACHE_KEY = "today_attendance_status";
 
 export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: () => void }) {
   const { user } = useAuth();
   const isHR = user && ["SUPER_ADMIN", "HR", "MANAGER", "FINANCE"].includes(user.role);
 
-  const [data, setData] = useState<TodayStatusData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize from cache for instant render with zero flicker
+  const [data, setData] = useState<TodayStatusData | null>(() => {
+    try {
+      const cached = localStorage.getItem(ATTENDANCE_CACHE_KEY);
+      if (cached) {
+        const parsed: TodayStatusData = JSON.parse(cached);
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (parsed?.date === todayStr) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  // Only start in a loading state if we do not already have today's cached status
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem(ATTENDANCE_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (parsed?.date === todayStr) return false;
+      }
+    } catch {}
+    return true;
+  });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -118,11 +144,16 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
 
-  const loadStatus = async () => {
-    setLoading(true);
+  const loadStatus = async (silent = false) => {
+    if (!silent && !data) {
+      setLoading(true);
+    }
     try {
       const res = await api.get("/api/attendance/today-status");
       setData(res.data);
+      try {
+        localStorage.setItem(ATTENDANCE_CACHE_KEY, JSON.stringify(res.data));
+      } catch {}
       if (res.data.allow_remote_checkin !== undefined) {
         setRemoteAllowed(Boolean(res.data.allow_remote_checkin));
       }
@@ -134,7 +165,6 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   };
 
   const requestLocation = () => {
-    loadStatus();
     if (!navigator.geolocation) {
       setGeoError("Geolocation is not supported by your browser");
       setGettingLocation(false);
@@ -173,12 +203,14 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
   };
 
   useEffect(() => {
-    loadStatus();
+    // If cached data is present, silently verify status in background; otherwise load
+    loadStatus(Boolean(data));
     requestLocation();
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        loadStatus();
+        // Silent background update without triggering loading spinner
+        loadStatus(true);
         requestLocation();
       }
     };
@@ -370,10 +402,22 @@ export default function CheckInOutCard({ onStatusChange }: { onStatusChange?: ()
     }
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="card p-5 flex items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      <div className="card p-5 space-y-4 border-l-4 border-l-brand-500 shadow-sm animate-pulse">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="space-y-1.5">
+            <div className="h-5 w-48 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded" />
+          </div>
+          <div className="h-6 w-24 bg-slate-100 dark:bg-slate-800 rounded-full" />
+        </div>
+        <div className="h-10 w-full bg-slate-100/70 dark:bg-slate-800/50 rounded-xl" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-16 bg-slate-100/60 dark:bg-slate-800/40 rounded-xl" />
+          <div className="h-16 bg-slate-100/60 dark:bg-slate-800/40 rounded-xl" />
+        </div>
+        <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded-xl" />
       </div>
     );
   }

@@ -244,31 +244,35 @@ export default function Employees() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="space-y-3">
+        <div className="relative w-full">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
-            className="input pl-9 text-sm"
+            className="input !pl-10 text-sm h-10 w-full"
             placeholder="Search name, email, designation..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
-          <option value="">All Branches</option>
-          <option value="ORIGIN">Origin</option>
-          <option value="IDEALAB">Idealab</option>
-          <option value="VIZAG">Vizag</option>
-        </select>
-        <select className="input w-40 text-sm" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-          <option value="">All Teams</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select className="input w-36 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="Active">Active Only</option>
-          <option value="Inactive">Inactive Only</option>
-          <option value="All">All Employees</option>
-        </select>
+
+        {/* 1 Row 3 Columns for All Branches, All Teams, Active Only */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <select className="input w-full text-sm h-10" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+            <option value="">All Branches</option>
+            <option value="ORIGIN">Origin</option>
+            <option value="IDEALAB">Idealab</option>
+            <option value="VIZAG">Vizag</option>
+          </select>
+          <select className="input w-full text-sm h-10" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+            <option value="">All Teams</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select className="input w-full text-sm h-10" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="Active">Active Only</option>
+            <option value="Inactive">Inactive Only</option>
+            <option value="All">All Employees</option>
+          </select>
+        </div>
       </div>
 
       {/* Add Employee Form */}

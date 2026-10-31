@@ -16,6 +16,8 @@ interface Notification {
 
 interface TopbarProps {
   onToggleMobile?: () => void;
+  onToggleSidebar?: () => void;
+  sidebarCollapsed?: boolean;
 }
 
 const COLOR_OPTIONS: { id: ColorTheme; label: string; colorHex: string }[] = [
@@ -26,7 +28,7 @@ const COLOR_OPTIONS: { id: ColorTheme; label: string; colorHex: string }[] = [
   { id: "teal", label: "Ocean Teal", colorHex: "#0d9488" },
 ];
 
-export default function Topbar({ onToggleMobile }: TopbarProps) {
+export default function Topbar({ onToggleMobile, onToggleSidebar, sidebarCollapsed }: TopbarProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme, colorTheme, setColorTheme } = useTheme();
   const navigate = useNavigate();
@@ -103,14 +105,27 @@ export default function Topbar({ onToggleMobile }: TopbarProps) {
           </button>
         )}
 
-        <form onSubmit={handleSearch} className="relative w-full">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <form onSubmit={handleSearch} className="relative w-full flex items-center">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+          />
           <input
-            className="input pl-9 text-xs sm:text-sm"
+            className="input !pl-10 !pr-9 text-xs sm:text-sm h-10 w-full rounded-xl bg-slate-100/70 hover:bg-slate-100 focus:bg-white dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:focus:bg-slate-900 border-slate-200 dark:border-slate-700 transition"
             placeholder="Search employees, departments..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
         </form>
       </div>
 

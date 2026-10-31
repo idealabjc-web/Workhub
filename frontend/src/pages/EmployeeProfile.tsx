@@ -1030,7 +1030,7 @@ export default function EmployeeProfile() {
 
           {/* Document Content Viewer */}
           <div className="flex-1 w-full max-w-6xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col items-center justify-center relative">
-            {previewDoc.file_url && previewDoc.file_url.startsWith("data:image/") ? (
+            {previewDoc.file_url && (previewDoc.file_url.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif|svg)($|\?)/i.test(previewDoc.file_url)) ? (
               <div className="w-full h-full p-4 flex items-center justify-center overflow-auto">
                 <img
                   src={previewDoc.file_url}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Plus, Check, X, Trash2, Download, DollarSign, Upload, Paperclip,
-  FileText, ExternalLink, Eye, Building2
+  FileText, ExternalLink, Eye, Building2, Clock, CheckCircle2, Wallet, BarChart3
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import api from "../api/client";
@@ -312,106 +312,261 @@ export default function Expenses() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Page Header matching reference design */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-semibold">Expenses</h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60">
-              <Check size={12} className="text-amber-600 dark:text-amber-400" />
+            <span className="w-1.5 h-6 bg-brand-500 rounded-full inline-block" />
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Expenses</h1>
+            <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200/70 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/60 shadow-xs">
+              <Check size={12} className="text-orange-500 stroke-[3]" />
               Approver: Dr Prasad Kovvuru (#SA1002)
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-0.5">Submit and manage expense reimbursements & vendor payments</p>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Submit and manage expense reimbursements & vendor payments
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportExcel} className="btn-secondary gap-2"><Download size={15} /> Export</button>
-          <button className="btn-primary gap-2" onClick={() => setShowForm((s) => !s)}><Plus size={16} /> Add Expense</button>
-        </div>
-      </div>
-
-      {/* Summary Metrics & Monthly Breakdown */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-1">
-          <div className="card p-4">
-            <p className="text-xs text-slate-400">Total Claimed</p>
-            <p className="text-xl font-bold">
-              ₹{Math.round(metrics.total).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-            </p>
-          </div>
-          <div className="card p-4">
-            <p className="text-xs text-slate-400">Pending</p>
-            <p className="text-xl font-bold text-amber-600">
-              ₹{Math.round(metrics.pending).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-            </p>
-          </div>
-          <div className="card p-4">
-            <p className="text-xs text-slate-400">Approved</p>
-            <p className="text-xl font-bold text-blue-600">
-              ₹{Math.round(metrics.approved).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-            </p>
-          </div>
-          <div className="card p-4">
-            <p className="text-xs text-slate-400">Paid Out</p>
-            <p className="text-xl font-bold text-emerald-600">
-              ₹{Math.round(metrics.paid).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-            </p>
-          </div>
-        </div>
-
-        {categoryChartData.length > 0 ? (
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-slate-400">
-                Expenses by Category {monthFilter ? `— ${getMonthLabel(monthFilter)}` : ""}
-              </p>
-              {monthFilter && (
-                <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-md border border-brand-200/50 dark:border-brand-900/50">
-                  {getMonthLabel(monthFilter)}
-                </span>
-              )}
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie
-                  data={categoryChartData}
-                  dataKey="amount"
-                  nameKey="category"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={60}
-                  paddingAngle={2}
-                >
-                  {categoryChartData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => `₹${Math.round(Number(v)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`} />
-                <Legend iconSize={8} formatter={(v) => <span className="text-xs">{v}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="card p-4 flex flex-col items-center justify-center text-center">
-            <p className="text-xs font-semibold text-slate-400 mb-1">Expenses by Category</p>
-            <p className="text-xs text-slate-400">
-              No expense data for {monthFilter ? getMonthLabel(monthFilter) : "the selected filters"}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <input type="month" className="input w-40 text-sm" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
-        {monthFilter && (
+        <div className="flex items-center gap-2.5">
           <button
-            onClick={() => setMonthFilter("")}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            onClick={exportExcel}
+            className="btn-secondary !px-4 !py-2 rounded-xl text-xs sm:text-sm font-semibold gap-2 shadow-xs border border-slate-200 hover:bg-slate-50 transition"
           >
-            Show All Months
+            <Download size={15} /> Export
           </button>
-        )}
-        <select className="input w-36 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+          <button
+            onClick={() => setShowForm((s) => !s)}
+            className="btn-primary !px-4 !py-2 rounded-xl text-xs sm:text-sm font-semibold gap-2 shadow-xs bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white transition active:scale-95"
+          >
+            <Plus size={16} /> Add Expense
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Metrics & Category Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        {/* Left: 4 Metric Cards */}
+        <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Card 1: Total Claimed */}
+          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col h-[200px] justify-between">
+            <div className="z-10">
+              <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                <Check size={20} className="stroke-[3]" />
+              </div>
+            </div>
+            <div className="my-auto z-10 pt-1">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Total Claimed</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                ₹{Math.round(metrics.total).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            {/* Prominent Multi-layer Wave Decoration */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none overflow-hidden z-0">
+              <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="wave-blue-front" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#93C5FD" stopOpacity="0.65" />
+                    <stop offset="100%" stopColor="#DBEAFE" stopOpacity="0.25" />
+                  </linearGradient>
+                  <linearGradient id="wave-blue-back" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#60A5FA" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+                <path d="M0,42 C35,25 75,55 120,38 C160,24 185,34 200,38 L200,80 L0,80 Z" fill="url(#wave-blue-back)" />
+                <path d="M0,58 C45,58 70,36 115,38 C155,40 175,25 200,30 L200,80 L0,80 Z" fill="url(#wave-blue-front)" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Card 2: Pending */}
+          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col h-[200px] justify-between">
+            <div className="z-10">
+              <div className="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-950/60 text-orange-500 dark:text-orange-400 flex items-center justify-center shadow-xs">
+                <Clock size={20} className="stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="my-auto z-10 pt-1">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Pending</p>
+              <p className="text-2xl font-bold tracking-tight text-orange-500 dark:text-orange-400">
+                ₹{Math.round(metrics.pending).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            {/* Prominent Multi-layer Wave Decoration */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none overflow-hidden z-0">
+              <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="wave-orange-front" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FDBA74" stopOpacity="0.65" />
+                    <stop offset="100%" stopColor="#FFEDD5" stopOpacity="0.25" />
+                  </linearGradient>
+                  <linearGradient id="wave-orange-back" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FB923C" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#FDBA74" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+                <path d="M0,42 C35,25 75,55 120,38 C160,24 185,34 200,38 L200,80 L0,80 Z" fill="url(#wave-orange-back)" />
+                <path d="M0,58 C45,58 70,36 115,38 C155,40 175,25 200,30 L200,80 L0,80 Z" fill="url(#wave-orange-front)" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Card 3: Approved */}
+          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col h-[200px] justify-between">
+            <div className="z-10">
+              <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shadow-xs">
+                <Check size={20} className="stroke-[3]" />
+              </div>
+            </div>
+            <div className="my-auto z-10 pt-1">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Approved</p>
+              <p className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+                ₹{Math.round(metrics.approved).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            {/* Prominent Multi-layer Wave Decoration */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none overflow-hidden z-0">
+              <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="wave-emerald-front" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#86EFAC" stopOpacity="0.65" />
+                    <stop offset="100%" stopColor="#DCFCE7" stopOpacity="0.25" />
+                  </linearGradient>
+                  <linearGradient id="wave-emerald-back" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#4ADE80" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#86EFAC" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+                <path d="M0,42 C35,25 75,55 120,38 C160,24 185,34 200,38 L200,80 L0,80 Z" fill="url(#wave-emerald-back)" />
+                <path d="M0,58 C45,58 70,36 115,38 C155,40 175,25 200,30 L200,80 L0,80 Z" fill="url(#wave-emerald-front)" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Card 4: Paid Out */}
+          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col h-[200px] justify-between">
+            <div className="z-10">
+              <div className="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-xs">
+                <Wallet size={20} className="stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="my-auto z-10 pt-1">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Paid Out</p>
+              <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                ₹{Math.round(metrics.paid).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            {/* Prominent Multi-layer Wave Decoration */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none overflow-hidden z-0">
+              <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="wave-purple-front" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#D8B4FE" stopOpacity="0.65" />
+                    <stop offset="100%" stopColor="#F3E8FF" stopOpacity="0.25" />
+                  </linearGradient>
+                  <linearGradient id="wave-purple-back" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#C084FC" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#D8B4FE" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+                <path d="M0,42 C35,25 75,55 120,38 C160,24 185,34 200,38 L200,80 L0,80 Z" fill="url(#wave-purple-back)" />
+                <path d="M0,58 C45,58 70,36 115,38 C155,40 175,25 200,30 L200,80 L0,80 Z" fill="url(#wave-purple-front)" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Expenses by Category Card */}
+        <div className="lg:col-span-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col h-[200px] justify-between">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={17} className="text-blue-600 dark:text-blue-400" />
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                Expenses by Category
+              </h3>
+            </div>
+            {monthFilter && (
+              <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-md border border-brand-200/50 dark:border-brand-900/50">
+                {getMonthLabel(monthFilter)}
+              </span>
+            )}
+          </div>
+
+          {categoryChartData.length > 0 ? (
+            <div className="flex items-center gap-3 h-[142px]">
+              {/* Pie Chart */}
+              <div className="w-[130px] h-[130px] flex-shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData}
+                      dataKey="amount"
+                      nameKey="category"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={54}
+                      paddingAngle={2}
+                    >
+                      {categoryChartData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => `₹${Math.round(Number(v)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Category Legend with Amounts */}
+              <div className="flex-1 min-w-0 max-h-[135px] overflow-y-auto no-scrollbar space-y-1.5 pr-1">
+                {categoryChartData.map((item, i) => (
+                  <div key={item.category} className="flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                      />
+                      <span className="text-slate-600 dark:text-slate-300 font-medium truncate text-[11px] sm:text-xs" title={item.category}>
+                        {item.category}
+                      </span>
+                    </div>
+                    <span className="text-slate-900 dark:text-white font-bold flex-shrink-0 text-[11px] sm:text-xs">
+                      ₹{Math.round(item.amount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="h-[142px] flex flex-col items-center justify-center text-center">
+              <p className="text-xs text-slate-400">
+                No expense data for {monthFilter ? getMonthLabel(monthFilter) : "the selected filters"}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filter Toolbar - 1 Row 4 Columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            className="input w-full text-sm"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+          />
+          {monthFilter && (
+            <button
+              type="button"
+              onClick={() => setMonthFilter("")}
+              className="shrink-0 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Show All Months"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <select className="input w-full text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
           <option value="ORIGIN">Origin</option>
           <option value="IDEALAB">Idealab</option>
@@ -419,14 +574,14 @@ export default function Expenses() {
           <option value="UGC">UGC</option>
           <option value="HYD">HYD</option>
         </select>
-        <select className="input w-40 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select className="input w-full text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
           <option value="PENDING">Pending</option>
           <option value="APPROVED">Approved</option>
           <option value="PAID">Paid</option>
           <option value="REJECTED">Rejected</option>
         </select>
-        <select className="input w-44 text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+        <select className="input w-full text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
           <option value="">All Categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -612,7 +767,7 @@ export default function Expenses() {
                 </td>
 
                 <td className="px-4 py-3.5">
-                  <p className="font-medium text-slate-800 dark:text-slate-200">{r.vendor_name || "—"}</p>
+                  <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[170px]" title={r.vendor_name || ""}>{r.vendor_name || "—"}</p>
                   {r.description && <p className="text-[10px] text-slate-400 truncate max-w-40">{r.description}</p>}
                 </td>
 
@@ -635,41 +790,44 @@ export default function Expenses() {
                   )}
                 </td>
 
-                <td className="px-4 py-3.5">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-semibold text-[11px] ${STATUS_COLOR[r.status] || ""}`}>
-                    {r.status}
-                  </span>
+                {/* STATUS COLUMN */}
+                <td className="px-4 py-3.5 whitespace-nowrap">
+                  {r.status === "PENDING" ? (
+                    <span
+                      className="inline-flex flex-col items-center justify-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60 leading-tight text-center shadow-xs"
+                      title="Awaiting approval by Dr Prasad Kovvuru (#SA1002)"
+                    >
+                      <span className="font-bold text-[10px] tracking-wide">Awaiting</span>
+                      <span className="font-semibold text-[9.5px] text-amber-600 dark:text-amber-400">Approval</span>
+                    </span>
+                  ) : (
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-semibold text-[11px] ${STATUS_COLOR[r.status] || ""}`}>
+                      {r.status}
+                    </span>
+                  )}
                 </td>
 
+                {/* ACTIONS COLUMN */}
                 {hasActions && (
-                  <td className="px-4 py-3.5">
+                  <td className="px-4 py-3.5 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      {r.status === "PENDING" && (
-                        canApprove ? (
-                          <>
-                            <button
-                              onClick={() => updateStatus(r.id, "APPROVED")}
-                              className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition shadow-sm"
-                              title="Approve expense"
-                            >
-                              <Check size={12} /> Approve
-                            </button>
-                            <button
-                              onClick={() => updateStatus(r.id, "REJECTED")}
-                              className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition shadow-sm"
-                              title="Reject expense"
-                            >
-                              <X size={12} /> Reject
-                            </button>
-                          </>
-                        ) : (
-                          <span
-                            className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200/60 dark:border-amber-900/60 font-medium"
-                            title="Approval restricted to Dr Prasad Kovvuru (#SA1002)"
+                      {r.status === "PENDING" && canApprove && (
+                        <>
+                          <button
+                            onClick={() => updateStatus(r.id, "APPROVED")}
+                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-emerald-100 text-emerald-700 font-semibold text-xs hover:bg-emerald-200 transition shadow-sm"
+                            title="Approve expense"
                           >
-                            Awaiting Dr Prasad Kovvuru (#SA1002)
-                          </span>
-                        )
+                            <Check size={12} /> Approve
+                          </button>
+                          <button
+                            onClick={() => updateStatus(r.id, "REJECTED")}
+                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 bg-red-100 text-red-700 font-semibold text-xs hover:bg-red-200 transition shadow-sm"
+                            title="Reject expense"
+                          >
+                            <X size={12} /> Reject
+                          </button>
+                        </>
                       )}
                       {r.status === "APPROVED" && canMarkPaid && (
                         <button
@@ -680,7 +838,7 @@ export default function Expenses() {
                           Mark Paid
                         </button>
                       )}
-                      {(canDelete || (user?.employee_id === r.employee_id && r.status === "PENDING")) && (
+                                            {(canDelete || (user?.employee_id === r.employee_id && r.status === "PENDING")) && (
                         <button
                           onClick={() => handleDelete(r.id)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
@@ -718,7 +876,7 @@ export default function Expenses() {
             </div>
 
             <div className="max-h-[70vh] overflow-y-auto rounded-xl bg-slate-100 dark:bg-slate-900 p-2 flex items-center justify-center">
-              {selectedReceipt.url.startsWith("data:application/pdf") ? (
+              {selectedReceipt.url.startsWith("data:application/pdf") || selectedReceipt.url.toLowerCase().includes(".pdf") ? (
                 <iframe src={selectedReceipt.url} className="w-full h-96 rounded-lg" title="Bill PDF" />
               ) : selectedReceipt.url.startsWith("data:image/") || selectedReceipt.url.startsWith("http") ? (
                 <img src={selectedReceipt.url} alt="Attached Bill Receipt" className="max-h-[60vh] rounded-lg object-contain" />
